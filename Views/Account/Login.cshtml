@@ -1,60 +1,100 @@
 @model FacultyEvalSystem.ViewModels.LoginViewModel
-@{ ViewData["Title"] = "Sign In"; Layout = "_Layout"; }
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In - Faculty Evaluation System</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: url('/loginbg.jpg') center/cover no-repeat fixed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 0;
+        }
+        .login-card {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+            margin: 1rem;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(4px);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            padding: 2.5rem;
+        }
+        .btn-primary {
+            background: #1a5632;
+            border-color: #1a5632;
+        }
+        .btn-primary:hover {
+            background: #0e3a1f;
+            border-color: #0e3a1f;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="text-center mb-4">
+            <h4 style="color:#1a5632; font-weight:700;">ISU CABAGAN</h4>
+            <p class="text-muted mb-0">Faculty Evaluation System</p>
+        </div>
 
-<div class="row justify-content-center" style="min-height:100vh; align-items:center;">
-    <div class="col-md-5">
-        <div class="card shadow">
-            <div class="card-body p-5">
-                <div class="text-center mb-4">
-                    <h4 style="color:#1a5632; font-weight:700;">ISU CABAGAN</h4>
-                    <p class="text-muted">Faculty Evaluation System</p>
+        <form asp-action="Login" asp-controller="Account" method="post">
+            <div asp-validation-summary="All" class="text-danger mb-3"></div>
+            <input type="hidden" asp-for="ShowPassword" />
+
+            @if (!Model.ShowPassword)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input asp-for="Email" class="form-control" placeholder="email@isuc.edu.ph" autofocus />
+                    <span asp-validation-for="Email" class="text-danger"></span>
                 </div>
 
-                <form asp-action="Login" method="post">
-                    <div asp-validation-summary="All" class="text-danger mb-3"></div>
-                    <input type="hidden" asp-for="ShowPassword" />
+                <button type="submit" class="btn btn-primary w-100 py-2">Next</button>
+            }
+            else
+            {
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="text" class="form-control bg-light" value="@Model.Email" disabled />
+                        <a href="@Url.Action("Login", "Account")" class="btn btn-outline-secondary btn-sm text-nowrap">Change</a>
+                    </div>
+                    <input type="hidden" asp-for="Email" />
+                </div>
 
-                    @if (!Model.ShowPassword)
-                    {
-                        <!-- Step 1: Email only -->
-                        <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <input asp-for="Email" class="form-control" placeholder="email@isuc.edu.ph" autofocus />
-                            <span asp-validation-for="Email" class="text-danger"></span>
-                        </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input asp-for="Password" class="form-control" autofocus />
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
 
-                        <button type="submit" class="btn btn-primary w-100 py-2">Next</button>
-                    }
-                    else
-                    {
-                        <!-- Step 2: Show email (locked) + password -->
-                        <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <div class="d-flex align-items-center gap-2">
-                                <input type="text" class="form-control bg-light" value="@Model.Email" disabled />
-                                <a href="@Url.Action("Login")" class="btn btn-outline-secondary btn-sm text-nowrap">Change</a>
-                            </div>
-                            <input type="hidden" asp-for="Email" />
-                        </div>
+                <div class="mb-3 form-check">
+                    <input asp-for="RememberMe" class="form-check-input" />
+                    <label asp-for="RememberMe" class="form-check-label">Remember me</label>
+                </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input asp-for="Password" class="form-control" autofocus />
-                            <span asp-validation-for="Password" class="text-danger"></span>
-                        </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Sign In</button>
+            }
+        </form>
 
-                        <div class="mb-3 form-check">
-                            <input asp-for="RememberMe" class="form-check-input" />
-                            <label asp-for="RememberMe" class="form-check-label">Remember me</label>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100 py-2">Sign In</button>
-                    }
-                </form>
-            </div>
-        </div>
-        <p class="text-center text-muted mt-3" style="font-size:12px;">
+        <p class="text-center text-muted mt-3 mb-0" style="font-size:12px;">
             Isabela State University - Cabagan Campus &copy; @DateTime.Now.Year
         </p>
     </div>
-</div>
+</body>
+</html>

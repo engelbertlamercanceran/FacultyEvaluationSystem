@@ -1,6 +1,22 @@
 @model FacultyEvalSystem.ViewModels.EvaluationFormViewModel
 @{ ViewData["Title"] = "Evaluate Faculty"; }
 
+<style>
+    .criteria-card input[type="radio"].form-check-input {
+        width: 1.4em;
+        height: 1.4em;
+        cursor: pointer;
+        border: 2px solid #adb5bd;
+    }
+    .criteria-card input[type="radio"].form-check-input:checked {
+        border-color: #1a5632;
+        background-color: #1a5632;
+    }
+    tr.unanswered td {
+        background-color: #fff3cd !important;
+    }
+</style>
+
 <div class="card mb-3">
     <div class="card-body">
         <h5 class="mb-1">@Model.FacultyName</h5>
@@ -11,7 +27,7 @@
     </div>
 </div>
 
-<form asp-action="Evaluate" method="post">
+<form asp-action="Evaluate" method="post" id="evalForm">
     <input type="hidden" asp-for="EvaluationPeriodId" />
     <input type="hidden" asp-for="FacultyId" />
     <input type="hidden" asp-for="FacultySubjectId" />
@@ -22,7 +38,7 @@
     @for (int c = 0; c < Model.Categories.Count; c++)
     {
         var category = Model.Categories[c];
-        <div class="card mb-3">
+        <div class="card mb-3 criteria-card">
             <div class="card-header">
                 <strong>@category.CategoryName</strong>
             </div>
@@ -45,9 +61,11 @@
                         {
                             var criterion = category.Criteria[i];
                             <tr>
-                                <td>@criterion.Description</td>
-                                <input type="hidden" name="Categories[@c].Criteria[@i].CriterionId" value="@criterion.CriterionId" />
-                                <input type="hidden" name="Categories[@c].Criteria[@i].Description" value="@criterion.Description" />
+                                <td>
+                                    @criterion.Description
+                                    <input type="hidden" name="Categories[@c].Criteria[@i].CriterionId" value="@criterion.CriterionId" />
+                                    <input type="hidden" name="Categories[@c].Criteria[@i].Description" value="@criterion.Description" />
+                                </td>
                                 @for (int r = 1; r <= 5; r++)
                                 {
                                     <td class="text-center">
@@ -75,8 +93,102 @@
 
     <div class="d-flex justify-content-between">
         <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
-        <button type="submit" class="btn btn-primary px-4" onclick="return confirm('Are you sure you want to submit this evaluation? This action cannot be undone.')">
+        <button type="button" class="btn btn-primary px-4" id="btnSubmit">
             Submit Evaluation
         </button>
     </div>
 </form>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Evaluation Submission</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to submit your evaluation for <strong>@Model.FacultyName</strong>.</p>
+                <div class="card bg-light mb-3">
+                    <div class="card-body text-center">
+                        <p class="mb-1 text-muted">Your Computed Rating</p>
+                        <h2 id="computedRating" style="color:#1a5632;">—</h2>
+                        <span id="computedDesc" class="badge"></span>
+                    </div>
+                </div>
+                <div id="categoryBreakdown" class="mb-3"></div>
+                <p class="text-danger small mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Go Back</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmSubmit">Confirm & Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById('btnSubmit').addEventListener('click', function () {
+        var form = document.getElementById('evalForm');
+
+        // Check all radios are selected and highlight unanswered
+        var allRadioGroups = {};
+        form.querySelectorAll('input[type="radio"]').forEach(function (r) {
+            if (!allRadioGroups[r.name]) allRadioGroups[r.name] = { answered: false, row: r.closest('tr') };
+            if (r.checked) allRadioGroups[r.name].answered = true;
+        });
+
+        // Clear previous highlights
+        form.querySelectorAll('tr.unanswered').forEach(function (row) { row.classList.remove('unanswered'); });
+
+        var unanswered = Object.values(allRadioGroups).filter(function (g) { return !g.answered; });
+        if (unanswered.length > 0) {
+            unanswered.forEach(function (g) { g.row.classList.add('unanswered'); });
+            unanswered[0].row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            alert('Please provide a rating for all criteria. ' + unanswered.length + ' item(s) remaining.');
+            return;
+        }
+
+        // Compute per-category averages and overall
+        var categories = document.querySelectorAll('.criteria-card');
+        var breakdownHtml = '<table class="table table-sm mb-0"><thead><tr><th>Category</th><th class="text-center">Average</th></tr></thead><tbody>';
+        var totalSum = 0, totalCount = 0;
+
+        categories.forEach(function (card) {
+            var header = card.querySelector('.card-header strong');
+            if (!header) return;
+            var catName = header.textContent;
+            var radios = card.querySelectorAll('input[type="radio"]:checked');
+            if (radios.length === 0) return;
+
+            var sum = 0;
+            radios.forEach(function (r) { sum += parseInt(r.value); });
+            var avg = sum / radios.length;
+            totalSum += sum;
+            totalCount += radios.length;
+
+            breakdownHtml += '<tr><td>' + catName + '</td><td class="text-center"><strong>' + avg.toFixed(2) + '</strong></td></tr>';
+        });
+
+        breakdownHtml += '</tbody></table>';
+        var overall = totalCount > 0 ? (totalSum / totalCount) : 0;
+
+        document.getElementById('computedRating').textContent = overall.toFixed(2);
+        document.getElementById('categoryBreakdown').innerHTML = breakdownHtml;
+
+        // Descriptive rating
+        var desc = overall >= 4.5 ? 'Outstanding' : overall >= 3.5 ? 'Very Satisfactory' : overall >= 2.5 ? 'Satisfactory' : overall >= 1.5 ? 'Fair' : 'Poor';
+        var descEl = document.getElementById('computedDesc');
+        descEl.textContent = desc;
+        descEl.className = 'badge badge-' + desc.toLowerCase().replace(' ', '-');
+
+        var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        modal.show();
+    });
+
+    document.getElementById('btnConfirmSubmit').addEventListener('click', function () {
+        document.getElementById('evalForm').submit();
+    });
+</script>
+}

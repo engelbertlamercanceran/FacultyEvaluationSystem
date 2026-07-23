@@ -1,0 +1,97 @@
+@model List<FacultyEvalSystem.Models.EvaluationResult>
+@{
+    ViewData["Title"] = "Faculty Development Plans";
+    var periods = (List<FacultyEvalSystem.Models.EvaluationPeriod>)ViewBag.Periods;
+    var selectedPeriodId = (int?)ViewBag.SelectedPeriodId;
+    var plans = (Dictionary<string, FacultyEvalSystem.Models.DevelopmentPlan>)ViewBag.Plans;
+    var isProgramChair = User.IsInRole("ProgramChair");
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get">
+            <label class="form-label">Evaluation Period</label>
+            <select name="periodId" class="form-select" onchange="this.form.submit()">
+                @foreach (var p in periods)
+                {
+                    <option value="@p.Id" selected="@(p.Id == selectedPeriodId)">@p.DisplayName</option>
+                }
+            </select>
+        </form>
+    </div>
+</div>
+
+@if (Model.Any())
+{
+    <div class="card">
+        <div class="card-header">Faculty in Your College (@Model.Count)</div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Faculty Name</th>
+                        <th class="text-center">Overall</th>
+                        <th class="text-center">Description</th>
+                        @if (isProgramChair)
+                        {
+                            <th class="text-center">Faculty Input</th>
+                            <th class="text-center">Supervisor Input</th>
+                        }
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model)
+                    {
+                        var plan = plans.GetValueOrDefault(r.FacultyId);
+                        <tr>
+                            <td>@r.Faculty.FullName</td>
+                            <td class="text-center"><strong>@r.OverallRating.ToString("F2")</strong></td>
+                            <td class="text-center">
+                                <span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span>
+                            </td>
+                            @if (isProgramChair)
+                            {
+                                <td class="text-center">
+                                    @if (plan?.FacultySubmittedAt != null)
+                                    {
+                                        <span class="badge bg-success">Submitted</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Pending</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (plan?.SupervisorSubmittedAt != null)
+                                    {
+                                        <span class="badge bg-success">Done</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning">Pending</span>
+                                    }
+                                </td>
+                            }
+                            <td>
+                                @if (isProgramChair)
+                                {
+                                    <a asp-action="Review" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
+                                       class="btn btn-outline-primary btn-sm">Review & Plan</a>
+                                }
+                                <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
+                                   class="btn btn-outline-secondary btn-sm">IFER</a>
+                                <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
+                                   class="btn btn-outline-info btn-sm">FEDAF</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">No evaluation results found for this period in your college.</div>
+}

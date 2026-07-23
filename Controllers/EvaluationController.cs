@@ -45,18 +45,22 @@ public class EvaluationController : Controller
         // Check which ones are already evaluated
         var existingEvals = await _db.Evaluations
             .Where(e => e.EvaluatorId == user!.Id && e.EvaluationPeriodId == activePeriod.Id)
-            .Select(e => new { e.FacultyId, e.FacultySubjectId })
             .ToListAsync();
 
-        var facultyList = enrollments.Select(e => new FacultyToEvaluateViewModel
+        var facultyList = enrollments.Select(e =>
         {
-            FacultyId = e.FacultySubject.FacultyId,
-            FacultyName = e.FacultySubject.Faculty.FullName,
-            FacultySubjectId = e.FacultySubjectId,
-            SubjectCode = e.FacultySubject.SubjectCode,
-            SubjectName = e.FacultySubject.SubjectName,
-            Section = e.FacultySubject.Section,
-            AlreadyEvaluated = existingEvals.Any(x => x.FacultyId == e.FacultySubject.FacultyId && x.FacultySubjectId == e.FacultySubjectId)
+            var myEval = existingEvals.FirstOrDefault(x => x.FacultyId == e.FacultySubject.FacultyId && x.FacultySubjectId == e.FacultySubjectId);
+            return new FacultyToEvaluateViewModel
+            {
+                FacultyId = e.FacultySubject.FacultyId,
+                FacultyName = e.FacultySubject.Faculty.FullName,
+                FacultySubjectId = e.FacultySubjectId,
+                SubjectCode = e.FacultySubject.SubjectCode,
+                SubjectName = e.FacultySubject.SubjectName,
+                Section = e.FacultySubject.Section,
+                AlreadyEvaluated = myEval is not null,
+                EvaluationId = myEval?.Id
+            };
         }).ToList();
 
         return View(new EvaluationListViewModel
@@ -158,7 +162,9 @@ public class EvaluationController : Controller
         await _evalService.ComputeFacultyResultAsync(model.EvaluationPeriodId, model.FacultyId);
 
         TempData["Success"] = "Evaluation submitted successfully. Thank you!";
-        return RedirectToAction("Index");
+        return model.EvaluatorType == "Supervisor"
+            ? RedirectToAction("SupervisorEvaluate")
+            : RedirectToAction("Index");
     }
 
     // Supervisor: list faculty to evaluate
@@ -188,14 +194,18 @@ public class EvaluationController : Controller
 
         var existingEvals = await _db.Evaluations
             .Where(e => e.EvaluatorId == user!.Id && e.EvaluationPeriodId == activePeriod.Id)
-            .Select(e => e.FacultyId)
             .ToListAsync();
 
-        var facultyList = facultyInRole.Select(f => new FacultyToEvaluateViewModel
+        var facultyList = facultyInRole.Select(f =>
         {
-            FacultyId = f.Id,
-            FacultyName = f.FullName,
-            AlreadyEvaluated = existingEvals.Contains(f.Id)
+            var myEval = existingEvals.FirstOrDefault(x => x.FacultyId == f.Id);
+            return new FacultyToEvaluateViewModel
+            {
+                FacultyId = f.Id,
+                FacultyName = f.FullName,
+                AlreadyEvaluated = myEval is not null,
+                EvaluationId = myEval?.Id
+            };
         }).ToList();
 
         return View("Index", new EvaluationListViewModel
@@ -204,4 +214,41 @@ public class EvaluationController : Controller
             FacultyList = facultyList
         });
     }
+
+    [HttpGet]
+    public async Task<IActionResult> MyRating(int evaluationId)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        var eval = await _db.Evaluations
+            .Include(e => e.Responses)
+                .ThenInclude(r => r.Criterion)
+                    .ThenInclude(cr => cr.Category)
+            .Include(e => e.Faculty)
+            .FirstOrDefaultAsync(e => e.Id == evaluationId && e.EvaluatorId == user!.Id);
+
+        if (eval is null) return NotFound();
+
+        var categories = eval.Responses
+            .GroupBy(r => r.Criterion.Category)
+            .OrderBy(g => g.Key.SortOrder)
+            .Select(g => new {
+                name = g.Key.Name,
+                average = g.Average(r => (double)r.Rating)
+            }).ToList();
+
+        var overall = eval.Responses.Average(r => (double)r.Rating);
+
+        return Json(new {
+            facultyName = eval.Faculty.FullName,
+            categories,
+            overall,
+            description = GetDescriptiveRating(overall)
+        });
+    }
+
+    private static string GetDescriptiveRating(double rating) =>
+        rating >= 4.5 ? "Outstanding" :
+        rating >= 3.5 ? "Very Satisfactory" :
+        rating >= 2.5 ? "Satisfactory" :
+        rating >= 1.5 ? "Fair" : "Poor";
 }

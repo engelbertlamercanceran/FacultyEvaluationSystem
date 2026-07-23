@@ -152,7 +152,7 @@ public class BatchImportController : Controller
             if (result.Succeeded)
             {
                 // Validate role
-                string[] validRoles = ["Admin", "Dean", "ProgramChair", "Faculty", "Student"];
+                string[] validRoles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student"];
                 if (validRoles.Contains(role))
                     await _userManager.AddToRoleAsync(user, role);
                 else
@@ -370,7 +370,7 @@ public class BatchImportController : Controller
                 : await _userManager.CreateAsync(user, password);
             if (result.Succeeded)
             {
-                string[] validRoles = ["Admin", "Dean", "ProgramChair", "Faculty", "Student"];
+                string[] validRoles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student"];
                 await _userManager.AddToRoleAsync(user, validRoles.Contains(role) ? role : "Student");
                 usersCreated++;
             }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -11,29 +12,29 @@ using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,Dean,ProgramChair")]
+[Authorize(Roles = "Admin,CEO,Dean,ProgramChair,Faculty")]
 public class ReportsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly EvaluationService _evalService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public ReportsController(ApplicationDbContext db, EvaluationService evalService)
+    public ReportsController(ApplicationDbContext db, EvaluationService evalService, UserManager<ApplicationUser> userManager)
     {
         _db = db;
         _evalService = evalService;
-    }
-
-    public async Task<IActionResult> Index()
-    {
-        var periods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderByDescending(p => p.Id).ToListAsync();
-        ViewBag.Periods = new SelectList(periods, "Id", "DisplayName");
-        return View();
+        _userManager = userManager;
     }
 
     // Generate Individual Faculty Evaluation Report (IFER) PDF
     [HttpGet]
-    public async Task<IActionResult> IFER(int periodId, string facultyId)
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty")]
+    public async Task<IActionResult> IFER(int periodId, string? facultyId)
     {
+        // Faculty can only view their own
+        if (User.IsInRole("Faculty"))
+            facultyId = _userManager.GetUserId(User);
+
         var result = await _db.EvaluationResults
             .Include(r => r.Faculty).ThenInclude(f => f.College)
             .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
@@ -174,8 +175,12 @@ public class ReportsController : Controller
     // Generate Faculty Evaluation and Development Acknowledgement Form (FEDAF) PDF
     // Per CHED CMO No. 19, Series of 2025 - Annex D
     [HttpGet]
-    public async Task<IActionResult> FEDAF(int periodId, string facultyId)
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty")]
+    public async Task<IActionResult> FEDAF(int periodId, string? facultyId)
     {
+        if (User.IsInRole("Faculty"))
+            facultyId = _userManager.GetUserId(User);
+
         var result = await _db.EvaluationResults
             .Include(r => r.Faculty).ThenInclude(f => f.College)
             .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
@@ -183,14 +188,8 @@ public class ReportsController : Controller
 
         if (result is null) return NotFound("No evaluation results found.");
 
-        // Get qualitative comments from evaluations
-        var comments = await _db.Evaluations
-            .Where(e => e.EvaluationPeriodId == periodId && e.FacultyId == facultyId && !string.IsNullOrEmpty(e.Comments))
-            .Select(e => new { e.EvaluatorType, e.Comments })
-            .ToListAsync();
-
-        var studentComments = comments.Where(c => c.EvaluatorType == "Student").Select(c => c.Comments!).ToList();
-        var supervisorComments = comments.Where(c => c.EvaluatorType == "Supervisor").Select(c => c.Comments!).ToList();
+        var plan = await _db.DevelopmentPlans
+            .FirstOrDefaultAsync(d => d.EvaluationPeriodId == periodId && d.FacultyId == facultyId);
 
         var pdf = Document.Create(container =>
         {
@@ -278,19 +277,19 @@ public class ReportsController : Controller
                     col.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Column(box =>
                     {
                         box.Item().Background(Colors.Grey.Lighten3).Padding(5).Text("Areas for Improvement").Bold().FontSize(9);
-                        box.Item().Padding(8).MinHeight(60).Text("").FontSize(9);
+                        box.Item().Padding(8).MinHeight(60).Text(plan?.AreasForImprovement ?? "").FontSize(9);
                     });
 
                     col.Item().PaddingTop(5).Border(1).BorderColor(Colors.Grey.Lighten2).Column(box =>
                     {
                         box.Item().Background(Colors.Grey.Lighten3).Padding(5).Text("Proposed Learning and Development Activities").Bold().FontSize(9);
-                        box.Item().Padding(8).MinHeight(60).Text("").FontSize(9);
+                        box.Item().Padding(8).MinHeight(60).Text(plan?.ProposedActivities ?? "").FontSize(9);
                     });
 
                     col.Item().PaddingTop(5).Border(1).BorderColor(Colors.Grey.Lighten2).Column(box =>
                     {
                         box.Item().Background(Colors.Grey.Lighten3).Padding(5).Text("Action Plan").Bold().FontSize(9);
-                        box.Item().Padding(8).MinHeight(60).Text("").FontSize(9);
+                        box.Item().Padding(8).MinHeight(60).Text(plan?.ActionPlan ?? "").FontSize(9);
                     });
 
                     col.Item().PaddingVertical(10);
@@ -364,6 +363,7 @@ public class ReportsController : Controller
 
     // Generate summary report for all faculty in a period
     [HttpGet]
+    [Authorize(Roles = "Admin,CEO,Dean,ProgramChair")]
     public async Task<IActionResult> SummaryReport(int periodId)
     {
         var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstOrDefaultAsync(p => p.Id == periodId);

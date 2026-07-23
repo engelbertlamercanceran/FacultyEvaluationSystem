@@ -1,4 +1,5 @@
 Email,FirstName,LastName,Role,Password,EmployeeNumber,StudentNumber,CollegeCode,ProgramCode
+ceo@isuc.edu.ph,Ricardo,Gonzales,CEO,Pass@123,EMP-2010-001,,,
 dean.garcia@isuc.edu.ph,Maria,Garcia,Dean,Pass@123,EMP-2019-001,,CCSICT,
 chair.reyes@isuc.edu.ph,Roberto,Reyes,ProgramChair,Pass@123,EMP-2020-005,,CCSICT,BSIT
 jose.santos@isuc.edu.ph,Jose,Santos,Faculty,Pass@123,EMP-2018-012,,CCSICT,BSIT

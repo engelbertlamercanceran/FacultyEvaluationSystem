@@ -44,6 +44,9 @@ public class FacultyToEvaluateViewModel
     public string? SubjectName { get; set; }
     public string? Section { get; set; }
     public bool AlreadyEvaluated { get; set; }
+    public int? EvaluationId { get; set; }
+    public double? CurrentRating { get; set; }
+    public string? DescriptiveRating { get; set; }
 }
 
 public class EvaluationListViewModel

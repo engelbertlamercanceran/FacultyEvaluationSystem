@@ -1,0 +1,133 @@
+@model List<FacultyEvalSystem.Models.EvaluationResult>
+@{
+    ViewData["Title"] = "My Reports & Development Plan";
+    var plans = (Dictionary<int, FacultyEvalSystem.Models.DevelopmentPlan>)ViewBag.Plans;
+}
+
+<p class="text-muted mb-3">View your evaluation reports and submit your development plan for each evaluation period.</p>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No evaluation results available yet.</div>
+}
+
+@foreach (var r in Model)
+{
+    var plan = plans.GetValueOrDefault(r.EvaluationPeriodId);
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <strong>@r.EvaluationPeriod.Semester.DisplayName</strong>
+                <span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-") ms-2">@r.DescriptiveRating</span>
+            </div>
+            <div>
+                <span class="text-muted me-3">Overall: <strong>@r.OverallRating.ToString("F2")</strong></span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="stat-card" style="border-left-color:#1a5632;">
+                        <p class="mb-1 small">Overall Rating</p>
+                        <h4>@r.OverallRating.ToString("F2")</h4>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card" style="border-left-color:#17a2b8;">
+                        <p class="mb-1 small">Student Rating (SET)</p>
+                        <h4>@r.StudentRating.ToString("F2")</h4>
+                        <small class="text-muted">@r.StudentRespondents respondents</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card" style="border-left-color:#f0b429;">
+                        <p class="mb-1 small">Supervisor Rating (SEF)</p>
+                        <h4>@r.SupervisorRating.ToString("F2")</h4>
+                        <small class="text-muted">@r.SupervisorRespondents respondents</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId"
+                   class="btn btn-outline-secondary btn-sm">Download IFER PDF</a>
+                <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@r.EvaluationPeriodId"
+                   class="btn btn-outline-info btn-sm">Download FEDAF PDF</a>
+            </div>
+
+            <hr/>
+
+            <h6>Development Plan (FEDAF Section C)</h6>
+
+            @{ var isClosed = r.EvaluationPeriod.Status == FacultyEvalSystem.Models.EvaluationStatus.Closed; }
+            @if (isClosed)
+            {
+                <div class="alert alert-secondary small py-2 mb-2">This evaluation period is closed. Development plans are read-only.</div>
+            }
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card @(plan?.FacultySubmittedAt != null ? "border-success" : "border-warning")">
+                        <div class="card-header small">
+                            Areas for Improvement
+                            <span class="badge @(plan?.FacultySubmittedAt != null ? "bg-success" : "bg-warning") float-end">
+                                @(plan?.FacultySubmittedAt != null ? "Submitted" : "Pending")
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            @if (isClosed)
+                            {
+                                <div class="form-control form-control-sm bg-light" style="min-height:100px;">
+                                    @(plan?.AreasForImprovement ?? "Not submitted.")
+                                </div>
+                            }
+                            else
+                            {
+                            <form asp-action="Edit" method="post">
+                                <input type="hidden" name="evaluationPeriodId" value="@r.EvaluationPeriodId" />
+                                <textarea name="areasForImprovement" class="form-control form-control-sm mb-2" rows="4"
+                                          placeholder="Identify areas where you can improve...">@(plan?.AreasForImprovement)</textarea>
+                                <button type="submit" class="btn btn-primary btn-sm w-100">Save</button>
+                            </form>
+                            }
+                            @if (plan?.FacultySubmittedAt != null)
+                            {
+                                <small class="text-muted d-block mt-1">Last saved: @plan.FacultySubmittedAt.Value.ToString("MMM dd, yyyy hh:mm tt")</small>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header small">
+                            Proposed Activities
+                            <span class="badge @(plan?.SupervisorSubmittedAt != null ? "bg-success" : "bg-secondary") float-end">
+                                @(plan?.SupervisorSubmittedAt != null ? "Provided" : "Awaiting Supervisor")
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-control form-control-sm bg-light" style="min-height:100px;">
+                                @(plan?.ProposedActivities ?? "Your supervisor will fill this in.")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header small">
+                            Action Plan
+                            <span class="badge @(plan?.SupervisorSubmittedAt != null ? "bg-success" : "bg-secondary") float-end">
+                                @(plan?.SupervisorSubmittedAt != null ? "Provided" : "Awaiting Supervisor")
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-control form-control-sm bg-light" style="min-height:100px;">
+                                @(plan?.ActionPlan ?? "Your supervisor will fill this in.")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

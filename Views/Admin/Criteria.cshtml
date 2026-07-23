@@ -1,0 +1,168 @@
+@model List<FacultyEvalSystem.Models.EvaluationCategory>
+@{ ViewData["Title"] = "Evaluation Criteria Management"; }
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">Add New Category</div>
+            <div class="card-body">
+                <form asp-action="CreateCategory" method="post">
+                    <div class="mb-2">
+                        <label class="form-label">Category Name</label>
+                        <input name="name" class="form-control form-control-sm" placeholder="e.g. Commitment" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Evaluator Type</label>
+                        <select name="evaluatorType" class="form-select form-select-sm" required>
+                            <option value="Student">Student (SET)</option>
+                            <option value="Supervisor">Supervisor (SEF)</option>
+                        </select>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col">
+                            <label class="form-label">Weight (%)</label>
+                            <input name="weight" type="number" step="0.01" class="form-control form-control-sm" placeholder="e.g. 20" required />
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Sort Order</label>
+                            <input name="sortOrder" type="number" class="form-control form-control-sm" value="1" required />
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100">Add Category</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body small">
+                <strong>Weight Guidelines</strong>
+                <ul class="mb-0 mt-1">
+                    <li>Student (SET) categories should total <strong>100%</strong></li>
+                    <li>Supervisor (SEF) categories should total <strong>100%</strong></li>
+                    <li>CHED CMO default: 5 student categories × 20%, 4 supervisor categories × 25%</li>
+                </ul>
+                <hr class="my-2"/>
+                <strong>Current Totals</strong>
+                @{
+                    var studentTotal = Model.Where(c => c.EvaluatorType == "Student").Sum(c => c.Weight);
+                    var supervisorTotal = Model.Where(c => c.EvaluatorType == "Supervisor").Sum(c => c.Weight);
+                }
+                <ul class="mb-0 mt-1">
+                    <li>Student: <strong class="@(studentTotal == 100 ? "text-success" : "text-danger")">@studentTotal%</strong></li>
+                    <li>Supervisor: <strong class="@(supervisorTotal == 100 ? "text-success" : "text-danger")">@supervisorTotal%</strong></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        @foreach (var type in new[] { "Student", "Supervisor" })
+        {
+            var categories = Model.Where(c => c.EvaluatorType == type).ToList();
+            <h5 class="mt-2 mb-3">@(type == "Student" ? "Student Evaluation (SET)" : "Supervisor Evaluation (SEF)") — @categories.Count categories</h5>
+
+            @if (!categories.Any())
+            {
+                <div class="alert alert-secondary">No @type.ToLower() categories yet.</div>
+            }
+
+            @foreach (var cat in categories)
+            {
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                            <strong>@cat.Name</strong>
+                            <span class="badge bg-secondary ms-2">@cat.Weight%</span>
+                            <small class="text-muted ms-2">Order: @cat.SortOrder</small>
+                        </span>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-outline-primary btn-sm" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#editCat-@cat.Id">Edit</button>
+                            <form asp-action="DeleteCategory" method="post"
+                                  onsubmit="return confirm('Delete this category and all its criteria?')">
+                                <input type="hidden" name="id" value="@cat.Id" />
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Edit Category (collapsible) -->
+                    <div class="collapse" id="editCat-@cat.Id">
+                        <div class="card-body bg-light border-bottom">
+                            <form asp-action="UpdateCategory" method="post" class="row g-2 align-items-end">
+                                <input type="hidden" name="id" value="@cat.Id" />
+                                <div class="col-md-4">
+                                    <label class="form-label small">Name</label>
+                                    <input name="name" value="@cat.Name" class="form-control form-control-sm" required />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small">Type</label>
+                                    <select name="evaluatorType" class="form-select form-select-sm">
+                                        <option value="Student" selected="@(cat.EvaluatorType == "Student")">Student</option>
+                                        <option value="Supervisor" selected="@(cat.EvaluatorType == "Supervisor")">Supervisor</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small">Weight (%)</label>
+                                    <input name="weight" type="number" step="0.01" value="@cat.Weight" class="form-control form-control-sm" required />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small">Order</label>
+                                    <input name="sortOrder" type="number" value="@cat.SortOrder" class="form-control form-control-sm" required />
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">Save</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th style="width:50px">#</th><th>Criterion</th><th style="width:160px">Actions</th></tr></thead>
+                            <tbody>
+                                @foreach (var cr in cat.Criteria)
+                                {
+                                    <tr>
+                                        <td>@cr.SortOrder</td>
+                                        <td>
+                                            <span id="crText-@cr.Id">@cr.Description</span>
+                                            <div class="collapse mt-1" id="editCr-@cr.Id">
+                                                <form asp-action="UpdateCriterion" method="post" class="d-flex gap-1">
+                                                    <input type="hidden" name="id" value="@cr.Id" />
+                                                    <input name="description" value="@cr.Description" class="form-control form-control-sm" required />
+                                                    <input name="sortOrder" type="number" value="@cr.SortOrder" class="form-control form-control-sm" style="width:70px" required />
+                                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" type="button"
+                                                    data-bs-toggle="collapse" data-bs-target="#editCr-@cr.Id">Edit</button>
+                                            <form asp-action="DeleteCriterion" method="post" style="display:inline"
+                                                  onsubmit="return confirm('Delete this criterion?')">
+                                                <input type="hidden" name="id" value="@cr.Id" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <!-- Add Criterion -->
+                        <div class="p-2 bg-light border-top">
+                            <form asp-action="CreateCriterion" method="post" class="d-flex gap-1">
+                                <input type="hidden" name="categoryId" value="@cat.Id" />
+                                <input name="description" class="form-control form-control-sm" placeholder="Add new criterion..." required />
+                                <input name="sortOrder" type="number" class="form-control form-control-sm" style="width:70px"
+                                       value="@(cat.Criteria.Any() ? cat.Criteria.Max(c => c.SortOrder) + 1 : 1)" required />
+                                <button type="submit" class="btn btn-success btn-sm text-nowrap">+ Add</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>

@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Evaluation> Evaluations => Set<Evaluation>();
     public DbSet<EvaluationResponse> EvaluationResponses => Set<EvaluationResponse>();
     public DbSet<EvaluationResult> EvaluationResults => Set<EvaluationResult>();
+    public DbSet<DevelopmentPlan> DevelopmentPlans => Set<DevelopmentPlan>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -54,6 +55,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(se => se.StudentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<DevelopmentPlan>()
+            .HasOne(d => d.Faculty)
+            .WithMany()
+            .HasForeignKey(d => d.FacultyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<DevelopmentPlan>()
+            .HasIndex(d => new { d.FacultyId, d.EvaluationPeriodId })
+            .IsUnique();
 
         // Unique: one evaluation per student per faculty per subject per period
         builder.Entity<Evaluation>()

@@ -82,12 +82,15 @@
                 <span class="badge bg-warning text-dark" style="font-size:10px;">@role</span>
             </div>
 
-            @if (role is "Admin" or "Dean" or "ProgramChair")
+            @if (role is "Admin" or "CEO" or "Dean" or "ProgramChair")
             {
                 <div class="nav-section">Main</div>
                 <a class="nav-link" asp-controller="Dashboard" asp-action="Index">Dashboard</a>
-                <a class="nav-link" asp-controller="Admin" asp-action="Results">Evaluation Results</a>
-                <a class="nav-link" asp-controller="Reports" asp-action="Index">Reports</a>
+
+                if (role is "Admin" or "CEO")
+                {
+                    <a class="nav-link" asp-controller="Results" asp-action="Index">Evaluation Results</a>
+                }
 
                 if (role == "Admin")
                 {
@@ -95,6 +98,7 @@
                     <a class="nav-link" asp-controller="Admin" asp-action="Users">Users</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Colleges">Colleges & Programs</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Criteria">Evaluation Criteria</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Periods</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Subject Assignments</a>
                     <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Batch Import</a>
@@ -104,12 +108,14 @@
                 {
                     <div class="nav-section">Evaluation</div>
                     <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Faculty</a>
+                    <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
                 }
             }
             else if (role == "Faculty")
             {
                 <div class="nav-section">Main</div>
                 <a class="nav-link" asp-controller="Dashboard" asp-action="Faculty">My Dashboard</a>
+                <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Index">My Reports & FEDAF</a>
             }
             else if (role == "Student")
             {

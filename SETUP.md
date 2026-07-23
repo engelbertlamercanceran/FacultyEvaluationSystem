@@ -56,25 +56,14 @@ Replace:
 
 **To find your server name:** Open SSMS, the server name is shown in the Connect dialog. Or run `sqlcmd -L` in a terminal.
 
-### Step 3: Install EF Core Tools
 
-```bash
-dotnet tool install --global dotnet-ef
-```
-
-### Step 4: Create the Database
-
-```bash
-dotnet ef database update
-```
-
-This creates the `isu_eval` database and all tables automatically from the migrations.
-
-### Step 5: Run the Application
+### Step 3: Run the Application
 
 ```bash
 dotnet run
 ```
+
+This will create the database on the first run and apply all migration and seeding data
 
 The app will start and show a URL like:
 

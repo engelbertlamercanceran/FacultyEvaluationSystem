@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Models;
 
 namespace FacultyEvalSystem.Data;
@@ -11,10 +12,10 @@ public static class DbSeeder
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
 
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
 
         // Seed roles
-        string[] roles = ["Admin", "Dean", "ProgramChair", "Faculty", "Student"];
+        string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student"];
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))

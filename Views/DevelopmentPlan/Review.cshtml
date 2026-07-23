@@ -1,0 +1,98 @@
+@model FacultyEvalSystem.Models.DevelopmentPlan
+@{
+    var result = (FacultyEvalSystem.Models.EvaluationResult)ViewBag.Result;
+    ViewData["Title"] = $"Development Plan — {result.Faculty.FullName}";
+}
+
+<a asp-action="Manage" asp-route-periodId="@result.EvaluationPeriodId" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back</a>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <strong>@result.Faculty.FullName</strong><br/>
+                <small class="text-muted">@(result.Faculty.College?.Name ?? "N/A")</small>
+            </div>
+            <div class="col-md-6 text-end">
+                <strong>@result.EvaluationPeriod.Semester.DisplayName</strong><br/>
+                <span class="badge badge-@result.DescriptiveRating.ToLower().Replace(" ", "-")">@result.DescriptiveRating</span>
+                <strong class="ms-2">@result.OverallRating.ToString("F2")</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100 @(Model.FacultySubmittedAt != null ? "border-success" : "")">
+            <div class="card-header small">
+                Areas for Improvement
+                <span class="badge @(Model.FacultySubmittedAt != null ? "bg-success" : "bg-secondary") float-end">
+                    @(Model.FacultySubmittedAt != null ? "Submitted by Faculty" : "Pending")
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="form-control bg-light" style="min-height:150px;">
+                    @(Model.AreasForImprovement ?? "Faculty has not submitted yet.")
+                </div>
+                @if (Model.FacultySubmittedAt != null)
+                {
+                    <small class="text-muted d-block mt-1">Submitted: @Model.FacultySubmittedAt.Value.ToString("MMM dd, yyyy hh:mm tt")</small>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header small">Supervisor Response</div>
+            <div class="card-body">
+                @{ var isClosed = result.EvaluationPeriod.Status == FacultyEvalSystem.Models.EvaluationStatus.Closed; }
+                @if (isClosed)
+                {
+                    <div class="alert alert-secondary small py-2">This evaluation period is closed. Development plans are read-only.</div>
+                    <div class="mb-3">
+                        <label class="form-label">Proposed Learning and Development Activities</label>
+                        <div class="form-control bg-light" style="min-height:100px;">@(Model.ProposedActivities ?? "Not provided.")</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Action Plan</label>
+                        <div class="form-control bg-light" style="min-height:100px;">@(Model.ActionPlan ?? "Not provided.")</div>
+                    </div>
+                }
+                else
+                {
+                <form asp-action="Review" method="post">
+                    <input type="hidden" name="evaluationPeriodId" value="@result.EvaluationPeriodId" />
+                    <input type="hidden" name="facultyId" value="@result.FacultyId" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Proposed Learning and Development Activities</label>
+                        <textarea name="proposedActivities" class="form-control" rows="4"
+                                  placeholder="Recommend training, seminars, mentoring programs...">@Model.ProposedActivities</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Action Plan</label>
+                        <textarea name="actionPlan" class="form-control" rows="4"
+                                  placeholder="Specific steps, timelines, responsible parties...">@Model.ActionPlan</textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Save Development Plan</button>
+
+                    @if (Model.SupervisorSubmittedAt != null)
+                    {
+                        <small class="text-muted ms-2">Last saved: @Model.SupervisorSubmittedAt.Value.ToString("MMM dd, yyyy hh:mm tt")</small>
+                    }
+                </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@result.EvaluationPeriodId" asp-route-facultyId="@result.FacultyId"
+       class="btn btn-outline-secondary btn-sm">Download IFER PDF</a>
+    <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@result.EvaluationPeriodId" asp-route-facultyId="@result.FacultyId"
+       class="btn btn-outline-info btn-sm">Download FEDAF PDF</a>
+</div>

@@ -3,16 +3,11 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label">Evaluation Period</label>
-                <select name="periodId" asp-items="(SelectList)ViewBag.Periods" class="form-select">
-                    <option value="">-- Select Period --</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary">View Results</button>
-            </div>
+        <form method="get" id="periodForm">
+            <label class="form-label">Evaluation Period</label>
+            <select name="periodId" asp-items="(SelectList)ViewBag.Periods" class="form-select" onchange="this.form.submit()">
+                <option value="">-- Select Period --</option>
+            </select>
         </form>
     </div>
 </div>

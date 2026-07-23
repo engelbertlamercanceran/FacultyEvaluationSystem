@@ -58,7 +58,7 @@ else
                                 }
                                 else
                                 {
-                                    <span class="text-muted">Done</span>
+                                    <button type="button" class="btn btn-outline-primary btn-sm btn-view-rating" data-eval-id="@f.EvaluationId">View My Rating</button>
                                 }
                             </td>
                         </tr>
@@ -71,4 +71,60 @@ else
             </table>
         </div>
     </div>
+
+    <!-- My Rating Modal -->
+    <div class="modal fade" id="ratingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">My Evaluation Rating</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 id="ratingFacultyName" class="mb-3"></h6>
+                    <div class="card bg-light mb-3">
+                        <div class="card-body text-center">
+                            <p class="mb-1 text-muted">Overall Rating</p>
+                            <h2 id="ratingOverall" style="color:#1a5632;">—</h2>
+                            <span id="ratingDesc" class="badge"></span>
+                        </div>
+                    </div>
+                    <div id="ratingBreakdown"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+<script>
+    document.querySelectorAll('.btn-view-rating').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var evalId = this.getAttribute('data-eval-id');
+            fetch('@Url.Action("MyRating")' + '?evaluationId=' + evalId)
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    document.getElementById('ratingFacultyName').textContent = data.facultyName;
+                    document.getElementById('ratingOverall').textContent = data.overall.toFixed(2);
+
+                    var descEl = document.getElementById('ratingDesc');
+                    descEl.textContent = data.description;
+                    descEl.className = 'badge badge-' + data.description.toLowerCase().replace(' ', '-');
+
+                    var html = '<table class="table table-sm mb-0"><thead><tr><th>Category</th><th class="text-center">Average</th></tr></thead><tbody>';
+                    data.categories.forEach(function (c) {
+                        html += '<tr><td>' + c.name + '</td><td class="text-center"><strong>' + c.average.toFixed(2) + '</strong></td></tr>';
+                    });
+                    html += '</tbody></table>';
+                    document.getElementById('ratingBreakdown').innerHTML = html;
+
+                    var modal = new bootstrap.Modal(document.getElementById('ratingModal'));
+                    modal.show();
+                });
+        });
+    });
+</script>
 }

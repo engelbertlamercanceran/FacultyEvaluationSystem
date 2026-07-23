@@ -50,6 +50,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQWRtaW5cQ3JlYXRlVXNlci5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/Admin/Criteria.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQWRtaW5cQ3JpdGVyaWEuY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/Admin/Enrollments.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQWRtaW5cRW5yb2xsbWVudHMuY3NodG1s
 build_metadata.AdditionalFiles.CssScope = 
@@ -84,6 +88,18 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/Dashboard/Index.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcRGFzaGJvYXJkXEluZGV4LmNzaHRtbA==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/DevelopmentPlan/Index.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcRGV2ZWxvcG1lbnRQbGFuXEluZGV4LmNzaHRtbA==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/DevelopmentPlan/Manage.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcRGV2ZWxvcG1lbnRQbGFuXE1hbmFnZS5jc2h0bWw=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/DevelopmentPlan/Review.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcRGV2ZWxvcG1lbnRQbGFuXFJldmlldy5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/ADMIN/Documents/BOLDR/Research/EvalSystem/FacultyEvalSystem/Views/Evaluation/Evaluate.cshtml]

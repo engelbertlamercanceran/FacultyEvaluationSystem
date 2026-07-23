@@ -338,10 +338,113 @@ public class AdminController : Controller
         return RedirectToAction("Colleges");
     }
 
+    // --- Evaluation Criteria Management ---
+    public async Task<IActionResult> Criteria()
+    {
+        var categories = await _db.EvaluationCategories
+            .Include(c => c.Criteria.OrderBy(cr => cr.SortOrder))
+            .OrderBy(c => c.EvaluatorType)
+            .ThenBy(c => c.SortOrder)
+            .ToListAsync();
+        return View(categories);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateCategory(string name, string evaluatorType, double weight, int sortOrder)
+    {
+        _db.EvaluationCategories.Add(new EvaluationCategory
+        {
+            Name = name,
+            EvaluatorType = evaluatorType,
+            Weight = weight,
+            SortOrder = sortOrder
+        });
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Category \"{name}\" created.";
+        return RedirectToAction("Criteria");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateCategory(int id, string name, string evaluatorType, double weight, int sortOrder)
+    {
+        var category = await _db.EvaluationCategories.FindAsync(id);
+        if (category is not null)
+        {
+            category.Name = name;
+            category.EvaluatorType = evaluatorType;
+            category.Weight = weight;
+            category.SortOrder = sortOrder;
+            await _db.SaveChangesAsync();
+            TempData["Success"] = $"Category \"{name}\" updated.";
+        }
+        return RedirectToAction("Criteria");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteCategory(int id)
+    {
+        var category = await _db.EvaluationCategories.Include(c => c.Criteria).FirstOrDefaultAsync(c => c.Id == id);
+        if (category is not null)
+        {
+            _db.EvaluationCriteria.RemoveRange(category.Criteria);
+            _db.EvaluationCategories.Remove(category);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = $"Category \"{category.Name}\" and its criteria deleted.";
+        }
+        return RedirectToAction("Criteria");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateCriterion(int categoryId, string description, int sortOrder)
+    {
+        _db.EvaluationCriteria.Add(new EvaluationCriterion
+        {
+            CategoryId = categoryId,
+            Description = description,
+            SortOrder = sortOrder
+        });
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Criterion added.";
+        return RedirectToAction("Criteria");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateCriterion(int id, string description, int sortOrder)
+    {
+        var criterion = await _db.EvaluationCriteria.FindAsync(id);
+        if (criterion is not null)
+        {
+            criterion.Description = description;
+            criterion.SortOrder = sortOrder;
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Criterion updated.";
+        }
+        return RedirectToAction("Criteria");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteCriterion(int id)
+    {
+        var criterion = await _db.EvaluationCriteria.FindAsync(id);
+        if (criterion is not null)
+        {
+            _db.EvaluationCriteria.Remove(criterion);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Criterion deleted.";
+        }
+        return RedirectToAction("Criteria");
+    }
+
     private async Task PopulateDropdowns()
     {
         ViewBag.Colleges = new SelectList(await _db.Colleges.ToListAsync(), "Id", "Name");
         ViewBag.Programs = new SelectList(await _db.AcademicPrograms.ToListAsync(), "Id", "Name");
-        ViewBag.Roles = new SelectList(new[] { "Student", "Faculty", "Dean", "ProgramChair", "Admin" });
+        ViewBag.Roles = new SelectList(new[] { "Student", "Faculty", "Dean", "ProgramChair", "CEO", "Admin" });
     }
 }
