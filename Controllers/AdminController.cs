@@ -236,17 +236,43 @@ public class AdminController : Controller
 
         var enrollments = await query.ToListAsync();
 
-        var students = await _userManager.GetUsersInRoleAsync("Student");
-        var allEnrolledIds = await _db.StudentEnrollments
-            .Where(se => se.FacultySubjectId == subjectId)
-            .Select(se => se.StudentId)
-            .ToListAsync();
-        var enrolledIds = allEnrolledIds.ToHashSet();
-        ViewBag.AvailableStudents = new SelectList(students.Where(s => s.IsActive && !enrolledIds.Contains(s.Id)), "Id", "FullName");
         ViewBag.Subject = subject;
         ViewBag.Search = search;
 
         return View(enrollments);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> SearchStudents(int subjectId, string term)
+    {
+        if (string.IsNullOrWhiteSpace(term) || term.Length < 2)
+            return Json(Array.Empty<object>());
+
+        var enrolledIds = await _db.StudentEnrollments
+            .Where(se => se.FacultySubjectId == subjectId)
+            .Select(se => se.StudentId)
+            .ToListAsync();
+
+        var words = term.Trim().ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var query = _db.Users
+            .Where(u => u.IsActive && !enrolledIds.Contains(u.Id));
+
+        foreach (var word in words)
+        {
+            var w = word; // capture for closure
+            query = query.Where(u =>
+                u.FirstName.ToLower().Contains(w) ||
+                u.LastName.ToLower().Contains(w) ||
+                (u.StudentNumber != null && u.StudentNumber.ToLower().Contains(w)));
+        }
+
+        var students = await query
+            .OrderBy(u => u.LastName)
+            .Take(10)
+            .Select(u => new { u.Id, Name = u.FirstName + " " + u.LastName, u.StudentNumber })
+            .ToListAsync();
+
+        return Json(students);
     }
 
     [HttpPost]
