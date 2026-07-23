@@ -1,0 +1,71 @@
+@model List<FacultyEvalSystem.Models.EvaluationResult>
+@{ ViewData["Title"] = "Evaluation Results"; }
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Evaluation Period</label>
+                <select name="periodId" asp-items="(SelectList)ViewBag.Periods" class="form-select">
+                    <option value="">-- Select Period --</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary">View Results</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (Model.Any())
+{
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Results (@Model.Count faculty)</span>
+            <a asp-controller="Reports" asp-action="SummaryReport" asp-route-periodId="@Model.First().EvaluationPeriodId" class="btn btn-outline-primary btn-sm">
+                Download Summary PDF
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Faculty Name</th>
+                        <th>College</th>
+                        <th class="text-center">Student Rating</th>
+                        <th class="text-center">Respondents</th>
+                        <th class="text-center">Supervisor Rating</th>
+                        <th class="text-center">Overall</th>
+                        <th>Description</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < Model.Count; i++)
+                    {
+                        var r = Model[i];
+                        <tr>
+                            <td>@(i + 1)</td>
+                            <td>@r.Faculty.FullName</td>
+                            <td>@(r.Faculty.College?.Code ?? "N/A")</td>
+                            <td class="text-center">@r.StudentRating.ToString("F2")</td>
+                            <td class="text-center">@r.StudentRespondents</td>
+                            <td class="text-center">@r.SupervisorRating.ToString("F2")</td>
+                            <td class="text-center"><strong>@r.OverallRating.ToString("F2")</strong></td>
+                            <td>
+                                <span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span>
+                            </td>
+                            <td>
+                                <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
+                                   class="btn btn-outline-secondary btn-sm">IFER</a>
+                                <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
+                                   class="btn btn-outline-info btn-sm">FEDAF</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

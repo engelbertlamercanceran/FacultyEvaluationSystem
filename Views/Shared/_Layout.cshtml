@@ -1,0 +1,163 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<FacultyEvalSystem.Models.ApplicationUser> SignInManager
+@inject UserManager<FacultyEvalSystem.Models.ApplicationUser> UserManager
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Faculty Evaluation System</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        :root {
+            --primary: #1a5632;
+            --primary-dark: #0e3a1f;
+            --accent: #f0b429;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; }
+        .sidebar {
+            position: fixed; top: 0; left: 0; width: 250px; height: 100vh;
+            background: var(--primary); color: #fff; padding-top: 0; z-index: 1000;
+            overflow-y: auto;
+        }
+        .sidebar .brand {
+            padding: 20px; text-align: center;
+            background: var(--primary-dark); border-bottom: 2px solid var(--accent);
+        }
+        .sidebar .brand h5 { margin: 0; font-weight: 700; font-size: 14px; }
+        .sidebar .brand small { opacity: 0.8; font-size: 11px; }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8); padding: 12px 20px; display: block;
+            text-decoration: none; font-size: 14px; border-left: 3px solid transparent;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background: rgba(255,255,255,0.1); color: #fff;
+            border-left-color: var(--accent);
+        }
+        .sidebar .nav-section {
+            padding: 15px 20px 5px; font-size: 11px; text-transform: uppercase;
+            opacity: 0.5; letter-spacing: 1px;
+        }
+        .main-content { margin-left: 250px; padding: 20px 30px; min-height: 100vh; }
+        .top-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #dee2e6;
+        }
+        .stat-card {
+            background: #fff; border-radius: 8px; padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid var(--primary);
+        }
+        .stat-card h3 { margin: 0; font-size: 28px; font-weight: 700; color: var(--primary); }
+        .stat-card p { margin: 5px 0 0; color: #6c757d; font-size: 13px; }
+        .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: 8px; }
+        .card-header { background: #fff; font-weight: 600; border-bottom: 2px solid var(--primary); }
+        .badge-outstanding { background: #28a745; }
+        .badge-very-satisfactory { background: #17a2b8; }
+        .badge-satisfactory { background: #ffc107; color: #000; }
+        .badge-fair { background: #fd7e14; }
+        .badge-poor { background: #dc3545; }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+        .table th { background: #f8f9fa; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+    </style>
+</head>
+<body>
+    @{
+        var currentUser = SignInManager.IsSignedIn(User) ? await UserManager.GetUserAsync(User) : null;
+        var roles = currentUser is not null ? await UserManager.GetRolesAsync(currentUser) : new List<string>();
+        var role = roles.FirstOrDefault() ?? "User";
+    }
+    @if (currentUser is not null)
+    {
+
+        <div class="sidebar">
+            <div class="brand">
+                <h5>ISU CABAGAN</h5>
+                <small>Faculty Evaluation System</small>
+            </div>
+            <div style="padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <small style="opacity:0.6;">Signed in as</small><br/>
+                <strong style="font-size:13px;">@currentUser!.FullName</strong><br/>
+                <span class="badge bg-warning text-dark" style="font-size:10px;">@role</span>
+            </div>
+
+            @if (role is "Admin" or "Dean" or "ProgramChair")
+            {
+                <div class="nav-section">Main</div>
+                <a class="nav-link" asp-controller="Dashboard" asp-action="Index">Dashboard</a>
+                <a class="nav-link" asp-controller="Admin" asp-action="Results">Evaluation Results</a>
+                <a class="nav-link" asp-controller="Reports" asp-action="Index">Reports</a>
+
+                if (role == "Admin")
+                {
+                    <div class="nav-section">Management</div>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Users">Users</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Colleges">Colleges & Programs</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Periods</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Subject Assignments</a>
+                    <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Batch Import</a>
+                }
+
+                if (role is "Dean" or "ProgramChair")
+                {
+                    <div class="nav-section">Evaluation</div>
+                    <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Faculty</a>
+                }
+            }
+            else if (role == "Faculty")
+            {
+                <div class="nav-section">Main</div>
+                <a class="nav-link" asp-controller="Dashboard" asp-action="Faculty">My Dashboard</a>
+            }
+            else if (role == "Student")
+            {
+                <div class="nav-section">Main</div>
+                <a class="nav-link" asp-controller="Evaluation" asp-action="Index">Evaluate Faculty</a>
+            }
+
+            <div style="position:absolute; bottom:0; width:100%; padding:15px 20px; border-top:1px solid rgba(255,255,255,0.1);">
+                <form asp-controller="Account" asp-action="Logout" method="post">
+                    <button type="submit" class="btn btn-outline-light btn-sm w-100">Sign Out</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="top-bar">
+                <h4 class="mb-0">@ViewData["Title"]</h4>
+                <small class="text-muted">@DateTime.Now.ToString("MMMM dd, yyyy")</small>
+            </div>
+
+            @if (TempData["Success"] is string success)
+            {
+                <div class="alert alert-success alert-dismissible fade show">
+                    @success
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @if (TempData["Error"] is string error)
+            {
+                <div class="alert alert-danger alert-dismissible fade show">
+                    @error
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+
+            @RenderBody()
+        </div>
+    }
+    else
+    {
+        <div class="container">
+            @RenderBody()
+        </div>
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,56 @@
+@model List<FacultyEvalSystem.Models.Semester>
+@{ ViewData["Title"] = "Semester Management"; }
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card mb-3">
+            <div class="card-header">Add Semester</div>
+            <div class="card-body">
+                <form asp-action="CreateSemester" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Academic Year</label>
+                        <input name="academicYear" class="form-control" placeholder="e.g. 2025-2026" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Term</label>
+                        <select name="term" class="form-select" required>
+                            <option value="1st Semester">1st Semester</option>
+                            <option value="2nd Semester">2nd Semester</option>
+                            <option value="Summer">Summer</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Create & Set Active</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">Semesters</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Academic Year</th><th>Term</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in Model)
+                        {
+                            <tr>
+                                <td>@s.AcademicYear</td>
+                                <td>@s.Term</td>
+                                <td>
+                                    @if (s.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

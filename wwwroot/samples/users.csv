@@ -1,0 +1,35 @@
+Email,FirstName,LastName,Role,Password,EmployeeNumber,StudentNumber,CollegeCode,ProgramCode
+dean.garcia@isuc.edu.ph,Maria,Garcia,Dean,Pass@123,EMP-2019-001,,CCSICT,
+chair.reyes@isuc.edu.ph,Roberto,Reyes,ProgramChair,Pass@123,EMP-2020-005,,CCSICT,BSIT
+jose.santos@isuc.edu.ph,Jose,Santos,Faculty,Pass@123,EMP-2018-012,,CCSICT,BSIT
+anna.cruz@isuc.edu.ph,Anna Marie,Cruz,Faculty,Pass@123,EMP-2019-008,,CCSICT,BSIT
+mark.bautista@isuc.edu.ph,Mark Anthony,Bautista,Faculty,Pass@123,EMP-2020-003,,CCSICT,BSCS
+elena.ramos@isuc.edu.ph,Elena,Ramos,Faculty,Pass@123,EMP-2017-021,,CCSICT,BSCS
+pedro.villanueva@isuc.edu.ph,Pedro,Villanueva,Faculty,Pass@123,EMP-2021-007,,CCSICT,BSIT
+dean.enriquez@isuc.edu.ph,Fernando,Enriquez,Dean,Pass@123,EMP-2015-002,,CAS,
+dean.dimaculangan@isuc.edu.ph,Victoria,Dimaculangan,Dean,Pass@123,EMP-2014-006,,CED,
+rosa.mendoza@isuc.edu.ph,Rosa,Mendoza,Faculty,Pass@123,EMP-2016-015,,CAS,
+carlos.aquino@isuc.edu.ph,Carlos,Aquino,Faculty,Pass@123,EMP-2018-019,,CAS,
+lucia.pascual@isuc.edu.ph,Lucia,Pascual,Faculty,Pass@123,EMP-2015-009,,CED,
+ramon.delacruz@isuc.edu.ph,Ramon,Dela Cruz,Faculty,Pass@123,EMP-2019-022,,CED,
+grace.tolentino@isuc.edu.ph,Grace,Tolentino,Faculty,Pass@123,EMP-2020-011,,CED,
+juan.delacruz@isuc.edu.ph,Juan,Dela Cruz,Student,Pass@123,,STU-2023-001,CCSICT,BSIT
+mariaclara.reyes@isuc.edu.ph,Maria Clara,Reyes,Student,Pass@123,,STU-2023-002,CCSICT,BSIT
+angelo.soriano@isuc.edu.ph,Angelo,Soriano,Student,Pass@123,,STU-2023-003,CCSICT,BSIT
+patricia.lim@isuc.edu.ph,Patricia,Lim,Student,Pass@123,,STU-2023-004,CCSICT,BSIT
+miguel.fernandez@isuc.edu.ph,Miguel,Fernandez,Student,Pass@123,,STU-2023-005,CCSICT,BSIT
+jasmine.castro@isuc.edu.ph,Jasmine,Castro,Student,Pass@123,,STU-2023-006,CCSICT,BSIT
+kenneth.navarro@isuc.edu.ph,Kenneth,Navarro,Student,Pass@123,,STU-2023-007,CCSICT,BSIT
+althea.rivera@isuc.edu.ph,Althea,Rivera,Student,Pass@123,,STU-2023-008,CCSICT,BSIT
+ryan.aguilar@isuc.edu.ph,Ryan,Aguilar,Student,Pass@123,,STU-2023-009,CCSICT,BSIT
+samantha.torres@isuc.edu.ph,Samantha,Torres,Student,Pass@123,,STU-2023-010,CCSICT,BSIT
+jerome.basco@isuc.edu.ph,Jerome,Basco,Student,Pass@123,,STU-2023-011,CCSICT,BSCS
+christine.salazar@isuc.edu.ph,Christine,Salazar,Student,Pass@123,,STU-2023-012,CCSICT,BSCS
+daniel.ocampo@isuc.edu.ph,Daniel,Ocampo,Student,Pass@123,,STU-2023-013,CCSICT,BSCS
+nicole.padilla@isuc.edu.ph,Nicole,Padilla,Student,Pass@123,,STU-2023-014,CCSICT,BSCS
+francis.bernardo@isuc.edu.ph,Francis,Bernardo,Student,Pass@123,,STU-2023-015,CCSICT,BSCS
+angelica.magsaysay@isuc.edu.ph,Angelica,Magsaysay,Student,Pass@123,,STU-2023-016,CCSICT,BSCS
+kevin.dizon@isuc.edu.ph,Kevin,Dizon,Student,Pass@123,,STU-2023-017,CCSICT,BSCS
+trisha.buenaventura@isuc.edu.ph,Trisha,Buenaventura,Student,Pass@123,,STU-2023-018,CCSICT,BSCS
+rafael.pangilinan@isuc.edu.ph,Rafael,Pangilinan,Student,Pass@123,,STU-2023-019,CCSICT,BSCS
+camille.lazaro@isuc.edu.ph,Camille,Lazaro,Student,Pass@123,,STU-2023-020,CCSICT,BSCS

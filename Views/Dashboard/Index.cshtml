@@ -1,0 +1,185 @@
+@model FacultyEvalSystem.ViewModels.AdminDashboardViewModel
+@{ ViewData["Title"] = "Dashboard"; }
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <h3>@Model.TotalFaculty</h3>
+            <p>Faculty Members</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color:#17a2b8;">
+            <h3>@Model.TotalStudents</h3>
+            <p>Students</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color:#f0b429;">
+            <h3>@Model.TotalColleges</h3>
+            <p>Colleges</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color:#28a745;">
+            <h3>@Model.TotalEvaluations</h3>
+            <p>Total Evaluations</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">Active Semester</div>
+            <div class="card-body">
+                @if (Model.ActiveSemester is not null)
+                {
+                    <h5>@Model.ActiveSemester.DisplayName</h5>
+                    @if (Model.ActivePeriod is not null)
+                    {
+                        <span class="badge bg-success">Evaluation Open</span>
+                        <p class="mt-2 mb-0 text-muted" style="font-size:13px;">
+                            @Model.ActivePeriod.StartDate.ToString("MMM dd") - @Model.ActivePeriod.EndDate.ToString("MMM dd, yyyy")
+                        </p>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">No Active Evaluation</span>
+                    }
+                }
+                else
+                {
+                    <p class="text-muted">No active semester</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header">College Performance Comparison</div>
+            <div class="card-body">
+                <canvas id="collegeChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Top 5 Performers</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr><th>Faculty</th><th>College</th><th>Rating</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.TopPerformers)
+                        {
+                            <tr>
+                                <td>@r.Faculty.FullName</td>
+                                <td>@(r.Faculty.College?.Code ?? "N/A")</td>
+                                <td><strong>@r.OverallRating.ToString("F2")</strong></td>
+                                <td><span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span></td>
+                            </tr>
+                        }
+                        @if (!Model.TopPerformers.Any())
+                        {
+                            <tr><td colspan="4" class="text-center text-muted">No data yet</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Faculty Needing Support</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr><th>Faculty</th><th>College</th><th>Rating</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.LowPerformers)
+                        {
+                            <tr>
+                                <td>@r.Faculty.FullName</td>
+                                <td>@(r.Faculty.College?.Code ?? "N/A")</td>
+                                <td><strong>@r.OverallRating.ToString("F2")</strong></td>
+                                <td><span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span></td>
+                            </tr>
+                        }
+                        @if (!Model.LowPerformers.Any())
+                        {
+                            <tr><td colspan="4" class="text-center text-muted">No data yet</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Semester Trend</div>
+            <div class="card-body">
+                <canvas id="trendChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // College comparison chart
+    fetch('/Dashboard/ChartData?type=college')
+        .then(r => r.json())
+        .then(d => {
+            new Chart(document.getElementById('collegeChart'), {
+                type: 'bar',
+                data: {
+                    labels: d.labels,
+                    datasets: [{
+                        label: 'Average Rating',
+                        data: d.data,
+                        backgroundColor: '#1a5632',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, max: 5 } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        });
+
+    // Trend chart
+    fetch('/Dashboard/ChartData?type=trend')
+        .then(r => r.json())
+        .then(d => {
+            new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: {
+                    labels: d.labels,
+                    datasets: [{
+                        label: 'Average Rating',
+                        data: d.data,
+                        borderColor: '#1a5632',
+                        backgroundColor: 'rgba(26,86,50,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, max: 5 } }
+                }
+            });
+        });
+</script>
+}

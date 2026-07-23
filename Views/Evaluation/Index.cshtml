@@ -1,0 +1,74 @@
+@model FacultyEvalSystem.ViewModels.EvaluationListViewModel
+@{ ViewData["Title"] = "Faculty Evaluation"; }
+
+@if (Model.ActivePeriod is null)
+{
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <h5 class="text-muted">No Active Evaluation Period</h5>
+            <p class="text-muted">The evaluation period is currently closed. Please check back later.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        <strong>@Model.ActivePeriod.Name</strong> - @Model.ActivePeriod.Semester.DisplayName<br/>
+        <small>Open from @Model.ActivePeriod.StartDate.ToString("MMMM dd") to @Model.ActivePeriod.EndDate.ToString("MMMM dd, yyyy")</small>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Faculty to Evaluate</div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Faculty Name</th>
+                        <th>Subject</th>
+                        <th>Section</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.FacultyList)
+                    {
+                        <tr>
+                            <td>@f.FacultyName</td>
+                            <td>@(f.SubjectCode is not null ? $"{f.SubjectCode} - {f.SubjectName}" : "General")</td>
+                            <td>@(f.Section ?? "-")</td>
+                            <td>
+                                @if (f.AlreadyEvaluated)
+                                {
+                                    <span class="badge bg-success">Completed</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!f.AlreadyEvaluated)
+                                {
+                                    <a asp-action="Evaluate"
+                                       asp-route-facultyId="@f.FacultyId"
+                                       asp-route-periodId="@Model.ActivePeriod.Id"
+                                       asp-route-subjectId="@f.FacultySubjectId"
+                                       class="btn btn-primary btn-sm">Evaluate</a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Done</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.FacultyList.Any())
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-4">No faculty assigned for evaluation</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

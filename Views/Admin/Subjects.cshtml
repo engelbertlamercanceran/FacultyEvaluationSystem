@@ -1,0 +1,70 @@
+@model List<FacultyEvalSystem.Models.FacultySubject>
+@{ ViewData["Title"] = "Subject Assignments"; }
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card mb-3">
+            <div class="card-header">Assign Subject to Faculty</div>
+            <div class="card-body">
+                @if (ViewBag.ActiveSemester is null)
+                {
+                    <div class="alert alert-warning mb-0">No active semester. Please create one first.</div>
+                }
+                else
+                {
+                    <p class="text-muted mb-3">Semester: <strong>@ViewBag.ActiveSemester.DisplayName</strong></p>
+                    <form asp-action="CreateSubject" method="post">
+                        <div class="mb-3">
+                            <label class="form-label">Faculty</label>
+                            <select name="facultyId" asp-items="(SelectList)ViewBag.Faculty" class="form-select" required>
+                                <option value="">-- Select Faculty --</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Subject Code</label>
+                            <input name="subjectCode" class="form-control" placeholder="e.g. IT 101" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Subject Name</label>
+                            <input name="subjectName" class="form-control" placeholder="e.g. Introduction to Computing" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Section</label>
+                            <input name="section" class="form-control" placeholder="e.g. BSIT 1A" />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Assign Subject</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">Current Semester Assignments</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Faculty</th><th>Subject</th><th>Section</th><th>Action</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in Model)
+                        {
+                            <tr>
+                                <td>@s.Faculty.FullName</td>
+                                <td>@s.SubjectCode - @s.SubjectName</td>
+                                <td>@(s.Section ?? "-")</td>
+                                <td>
+                                    <a asp-action="Enrollments" asp-route-subjectId="@s.Id" class="btn btn-outline-primary btn-sm">
+                                        Enrollments
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Any())
+                        {
+                            <tr><td colspan="4" class="text-center text-muted py-3">No assignments yet</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

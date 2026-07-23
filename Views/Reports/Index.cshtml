@@ -1,0 +1,39 @@
+@{ ViewData["Title"] = "Reports"; }
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Individual Faculty Evaluation Report (IFER)</div>
+            <div class="card-body">
+                <p class="text-muted">Generate CHED-compliant IFER for a specific faculty member.</p>
+                <p class="text-muted">Go to <a asp-action="Results" asp-controller="Admin">Evaluation Results</a> and click "IFER PDF" for each faculty.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Faculty Evaluation and Development Acknowledgement Form (FEDAF)</div>
+            <div class="card-body">
+                <p class="text-muted">CHED CMO No. 19 Annex D — Per-faculty acknowledgement form with evaluation summary and development plan section.</p>
+                <p class="text-muted">Go to <a asp-action="Results" asp-controller="Admin">Evaluation Results</a> and click "FEDAF" for each faculty.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Faculty Evaluation Summary Report</div>
+            <div class="card-body">
+                <p class="text-muted">Generate a summary of all faculty ratings for a specific evaluation period.</p>
+                <form asp-action="SummaryReport" method="get">
+                    <div class="mb-3">
+                        <label class="form-label">Evaluation Period</label>
+                        <select name="periodId" asp-items="(SelectList)ViewBag.Periods" class="form-select" required>
+                            <option value="">-- Select --</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Generate Summary PDF</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,147 @@
+@{ ViewData["Title"] = "Batch Data Import"; }
+
+<div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <strong>Quick Demo Setup — One Click</strong>
+    </div>
+    <div class="card-body">
+        <p class="mb-2">Sets up the entire system with sample data for demonstration: 5 colleges, 4 programs, 32 users (1 dean, 1 program chair, 10 faculty, 20 students), 3 semesters, 14 subject assignments, 55 enrollments, 3 evaluation periods with sample evaluations, and computed results.</p>
+        <form asp-action="QuickDemoSetup" method="post">
+            <button type="submit" class="btn btn-success"
+                    onclick="this.disabled=true; this.innerText='Setting up... please wait'; this.form.submit(); return true;">
+                Run Quick Demo Setup
+            </button>
+        </form>
+    </div>
+</div>
+
+<hr/>
+
+<div class="alert alert-info">
+    <strong>Manual Batch Import</strong> — Upload CSV files to import data individually.
+    Import in this order: <strong>1) Colleges & Programs</strong> → <strong>2) Users</strong> → <strong>3) Subjects</strong> → <strong>4) Enrollments</strong>.
+    <br/><small>Download sample templates below to see the required format.</small>
+</div>
+
+<div class="row g-3">
+    <!-- Step 1: Colleges & Programs -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><strong>Step 1:</strong> Colleges & Programs</span>
+                <a href="~/samples/colleges_programs.csv" class="btn btn-outline-secondary btn-sm" download>Download Template</a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">
+                    Columns: <code>CollegeName, CollegeCode, ProgramName, ProgramCode</code><br/>
+                    Programs are optional — leave blank if a college has no programs to import.
+                </p>
+                <form asp-action="ImportColleges" method="post" enctype="multipart/form-data">
+                    <div class="input-group">
+                        <input type="file" name="file" accept=".csv" class="form-control form-control-sm" required />
+                        <button type="submit" class="btn btn-primary btn-sm">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Users -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><strong>Step 2:</strong> Users (Faculty, Students, Supervisors)</span>
+                <a href="~/samples/users.csv" class="btn btn-outline-secondary btn-sm" download>Download Template</a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">
+                    Columns: <code>Email, FirstName, LastName, Role, Password, EmployeeNumber, StudentNumber, CollegeCode, ProgramCode</code><br/>
+                    Valid roles: <code>Dean, ProgramChair, Faculty, Student</code>. Password is <strong>optional</strong> — if left blank, the user will set their password on first login.
+                </p>
+                <form asp-action="ImportUsers" method="post" enctype="multipart/form-data">
+                    <div class="input-group">
+                        <input type="file" name="file" accept=".csv" class="form-control form-control-sm" required />
+                        <button type="submit" class="btn btn-primary btn-sm">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Subject Assignments -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><strong>Step 3:</strong> Subject Assignments</span>
+                <a href="~/samples/subjects.csv" class="btn btn-outline-secondary btn-sm" download>Download Template</a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">
+                    Columns: <code>FacultyEmail, SubjectCode, SubjectName, Section</code><br/>
+                    Subjects are assigned to the <strong>currently active semester</strong>. Make sure a semester is active before importing.
+                </p>
+                <form asp-action="ImportSubjects" method="post" enctype="multipart/form-data">
+                    <div class="input-group">
+                        <input type="file" name="file" accept=".csv" class="form-control form-control-sm" required />
+                        <button type="submit" class="btn btn-primary btn-sm">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Student Enrollments -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><strong>Step 4:</strong> Student Enrollments</span>
+                <a href="~/samples/enrollments.csv" class="btn btn-outline-secondary btn-sm" download>Download Template</a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">
+                    Columns: <code>StudentEmail, SubjectCode, Section</code><br/>
+                    Links students to subjects in the <strong>active semester</strong>. Subjects must be imported first.
+                </p>
+                <form asp-action="ImportEnrollments" method="post" enctype="multipart/form-data">
+                    <div class="input-group">
+                        <input type="file" name="file" accept=".csv" class="form-control form-control-sm" required />
+                        <button type="submit" class="btn btn-primary btn-sm">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4 border-warning">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+        <span><strong>Step 5:</strong> Generate Sample Evaluations (Demo Data)</span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-2">
+            Generates sample student and supervisor evaluations for <strong>all faculty</strong> across <strong>all evaluation periods</strong>,
+            with varied ratings and comments. Results are automatically computed after generation.<br/>
+            <strong>Prerequisites:</strong> Users, subjects, and at least one evaluation period must exist.
+        </p>
+        <form asp-action="GenerateSampleEvaluations" method="post">
+            <button type="submit" class="btn btn-warning btn-sm"
+                    onclick="return confirm('This will generate sample evaluations for all faculty in all periods. Continue?')">
+                Generate Sample Evaluations
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">Import Notes</div>
+    <div class="card-body">
+        <ul class="mb-0 small">
+            <li>Files must be in <strong>CSV format</strong> (comma-separated values). You can save Excel files as CSV using "Save As → CSV (Comma delimited)".</li>
+            <li>The first row must be the <strong>header row</strong> with column names.</li>
+            <li><strong>Duplicate records are automatically skipped</strong> — you can safely re-import the same file without creating duplicates.</li>
+            <li>Users are matched by <strong>email address</strong>. Subjects are matched by <strong>code + section + semester</strong>.</li>
+            <li>For subjects and enrollments, a <strong>semester must be active</strong>. Create one in Semesters first.</li>
+            <li>Imported data can also be managed individually through the Admin pages (Users, Subjects, Enrollments).</li>
+        </ul>
+    </div>
+</div>

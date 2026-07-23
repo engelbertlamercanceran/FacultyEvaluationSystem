@@ -1,0 +1,80 @@
+@model List<FacultyEvalSystem.Models.EvaluationPeriod>
+@{ ViewData["Title"] = "Evaluation Periods"; }
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card mb-3">
+            <div class="card-header">Create Evaluation Period</div>
+            <div class="card-body">
+                <form asp-action="CreatePeriod" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input name="name" class="form-control" placeholder="e.g. Midterm Evaluation" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Semester</label>
+                        <select name="semesterId" asp-items="(SelectList)ViewBag.Semesters" class="form-select" required></select>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Start Date</label>
+                            <input name="startDate" type="date" class="form-control" required />
+                        </div>
+                        <div class="col">
+                            <label class="form-label">End Date</label>
+                            <input name="endDate" type="date" class="form-control" required />
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Create Period</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">Evaluation Periods</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Name</th><th>Semester</th><th>Dates</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in Model)
+                        {
+                            <tr>
+                                <td>@p.Name</td>
+                                <td>@p.Semester.DisplayName</td>
+                                <td>@p.StartDate.ToString("MMM dd") - @p.EndDate.ToString("MMM dd")</td>
+                                <td>
+                                    <span class="badge bg-@(p.Status == FacultyEvalSystem.Models.EvaluationStatus.Open ? "success" : p.Status == FacultyEvalSystem.Models.EvaluationStatus.Closed ? "danger" : "warning")">
+                                        @p.Status
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (p.Status != FacultyEvalSystem.Models.EvaluationStatus.Open)
+                                    {
+                                        <form asp-action="UpdatePeriodStatus" method="post" style="display:inline;">
+                                            <input type="hidden" name="id" value="@p.Id" />
+                                            <input type="hidden" name="status" value="@FacultyEvalSystem.Models.EvaluationStatus.Open" />
+                                            <button type="submit" class="btn btn-success btn-sm">Open</button>
+                                        </form>
+                                    }
+                                    @if (p.Status != FacultyEvalSystem.Models.EvaluationStatus.Closed)
+                                    {
+                                        <form asp-action="UpdatePeriodStatus" method="post" style="display:inline;">
+                                            <input type="hidden" name="id" value="@p.Id" />
+                                            <input type="hidden" name="status" value="@FacultyEvalSystem.Models.EvaluationStatus.Closed" />
+                                            <button type="submit" class="btn btn-danger btn-sm">Close</button>
+                                        </form>
+                                    }
+                                    <form asp-action="ComputeResults" method="post" style="display:inline;">
+                                        <input type="hidden" name="periodId" value="@p.Id" />
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">Compute</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,78 @@
+@model List<FacultyEvalSystem.Models.College>
+@{ ViewData["Title"] = "Colleges & Programs"; }
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card mb-3">
+            <div class="card-header">Add College</div>
+            <div class="card-body">
+                <form asp-action="CreateCollege" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">College Name</label>
+                        <input name="name" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Code</label>
+                        <input name="code" class="form-control" placeholder="e.g. CCSICT" required />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add College</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Add Program</div>
+            <div class="card-body">
+                <form asp-action="CreateProgram" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">College</label>
+                        <select name="collegeId" class="form-select" required>
+                            <option value="">-- Select --</option>
+                            @foreach (var c in Model)
+                            {
+                                <option value="@c.Id">@c.Code - @c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Program Name</label>
+                        <input name="name" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Code</label>
+                        <input name="code" class="form-control" placeholder="e.g. BSIT" required />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add Program</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        @foreach (var college in Model)
+        {
+            <div class="card mb-3">
+                <div class="card-header">
+                    <strong>@college.Code</strong> - @college.Name
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>Program Code</th><th>Program Name</th></tr></thead>
+                        <tbody>
+                            @foreach (var prog in college.Programs)
+                            {
+                                <tr>
+                                    <td>@prog.Code</td>
+                                    <td>@prog.Name</td>
+                                </tr>
+                            }
+                            @if (!college.Programs.Any())
+                            {
+                                <tr><td colspan="2" class="text-muted text-center">No programs yet</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+</div>
