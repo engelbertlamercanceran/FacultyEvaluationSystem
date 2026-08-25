@@ -10,7 +10,7 @@ using FacultyEvalSystem.ViewModels;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,AAStaff")]
 public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
@@ -25,6 +25,7 @@ public class AdminController : Controller
     }
 
     // --- User Management ---
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Users(string? search)
     {
         var query = _db.Users.Include(u => u.College).Include(u => u.Program).AsQueryable();
@@ -53,6 +54,7 @@ public class AdminController : Controller
         return View(users);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> CreateUser()
     {
@@ -60,6 +62,7 @@ public class AdminController : Controller
         return View(new RegisterViewModel());
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateUser(RegisterViewModel model)
@@ -103,6 +106,7 @@ public class AdminController : Controller
         return View(model);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleUser(string id)
@@ -117,11 +121,13 @@ public class AdminController : Controller
     }
 
     // --- Semester Management ---
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Semesters()
     {
         return View(await _db.Semesters.OrderByDescending(s => s.AcademicYear).ToListAsync());
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateSemester(string academicYear, string term)
@@ -136,6 +142,7 @@ public class AdminController : Controller
     }
 
     // --- Evaluation Period Management ---
+    [Authorize(Roles = "AAStaff")]
     public async Task<IActionResult> Periods()
     {
         var periods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderByDescending(p => p.Id).ToListAsync();
@@ -143,6 +150,7 @@ public class AdminController : Controller
         return View(periods);
     }
 
+    [Authorize(Roles = "AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreatePeriod(string name, int semesterId, DateTime startDate, DateTime endDate)
@@ -160,6 +168,7 @@ public class AdminController : Controller
         return RedirectToAction("Periods");
     }
 
+    [Authorize(Roles = "AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdatePeriodStatus(int id, EvaluationStatus status)
@@ -216,6 +225,7 @@ public class AdminController : Controller
     }
 
     // --- Student Enrollment ---
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Enrollments(int subjectId, string? search)
     {
         var subject = await _db.FacultySubjects.Include(fs => fs.Faculty).FirstOrDefaultAsync(fs => fs.Id == subjectId);
@@ -242,6 +252,7 @@ public class AdminController : Controller
         return View(enrollments);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> SearchStudents(int subjectId, string term)
     {
@@ -275,6 +286,7 @@ public class AdminController : Controller
         return Json(students);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EnrollStudent(int subjectId, string studentId)
@@ -286,6 +298,7 @@ public class AdminController : Controller
     }
 
     // --- Compute Results ---
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ComputeResults(int periodId)
@@ -295,6 +308,7 @@ public class AdminController : Controller
         return RedirectToAction("Results", new { periodId });
     }
 
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Results(int? periodId)
     {
         var periods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderByDescending(p => p.Id).ToListAsync();
@@ -313,11 +327,13 @@ public class AdminController : Controller
     }
 
     // --- Colleges ---
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Colleges()
     {
         return View(await _db.Colleges.Include(c => c.Programs).ToListAsync());
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCollege(string name, string code)
@@ -328,6 +344,7 @@ public class AdminController : Controller
         return RedirectToAction("Colleges");
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateProgram(int collegeId, string name, string code)
@@ -339,6 +356,7 @@ public class AdminController : Controller
     }
 
     // --- Evaluation Criteria Management ---
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Criteria()
     {
         var categories = await _db.EvaluationCategories
@@ -349,6 +367,7 @@ public class AdminController : Controller
         return View(categories);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCategory(string name, string evaluatorType, double weight, int sortOrder)
@@ -365,6 +384,7 @@ public class AdminController : Controller
         return RedirectToAction("Criteria");
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateCategory(int id, string name, string evaluatorType, double weight, int sortOrder)
@@ -382,6 +402,7 @@ public class AdminController : Controller
         return RedirectToAction("Criteria");
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCategory(int id)
@@ -397,6 +418,7 @@ public class AdminController : Controller
         return RedirectToAction("Criteria");
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCriterion(int categoryId, string description, int sortOrder)
@@ -412,6 +434,7 @@ public class AdminController : Controller
         return RedirectToAction("Criteria");
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateCriterion(int id, string description, int sortOrder)
@@ -427,6 +450,7 @@ public class AdminController : Controller
         return RedirectToAction("Criteria");
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCriterion(int id)
@@ -445,6 +469,6 @@ public class AdminController : Controller
     {
         ViewBag.Colleges = new SelectList(await _db.Colleges.ToListAsync(), "Id", "Name");
         ViewBag.Programs = new SelectList(await _db.AcademicPrograms.ToListAsync(), "Id", "Name");
-        ViewBag.Roles = new SelectList(new[] { "Student", "Faculty", "Dean", "ProgramChair", "CEO", "Admin" });
+        ViewBag.Roles = new SelectList(new[] { "Student", "Faculty", "Dean", "ProgramChair", "CEO", "AA", "AAStaff", "QA", "Admin" });
     }
 }

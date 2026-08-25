@@ -71,7 +71,7 @@ public class AccountController : Controller
 
             return roles.FirstOrDefault() switch
             {
-                "Admin" or "Dean" or "ProgramChair" => RedirectToAction("Index", "Dashboard"),
+                "Admin" or "CEO" or "Dean" or "ProgramChair" or "AA" or "AAStaff" or "QA" => RedirectToAction("Index", "Dashboard"),
                 "Faculty" => RedirectToAction("Faculty", "Dashboard"),
                 "Student" => RedirectToAction("Index", "Evaluation"),
                 _ => RedirectToAction("Index", "Home")
@@ -116,7 +116,7 @@ public class AccountController : Controller
             TempData["Success"] = "Password set successfully. Welcome!";
             return roles.FirstOrDefault() switch
             {
-                "Admin" or "Dean" or "ProgramChair" => RedirectToAction("Index", "Dashboard"),
+                "Admin" or "CEO" or "Dean" or "ProgramChair" or "AA" or "AAStaff" or "QA" => RedirectToAction("Index", "Dashboard"),
                 "Faculty" => RedirectToAction("Faculty", "Dashboard"),
                 "Student" => RedirectToAction("Index", "Evaluation"),
                 _ => RedirectToAction("Index", "Home")

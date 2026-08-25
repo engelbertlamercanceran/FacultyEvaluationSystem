@@ -24,7 +24,7 @@ public class DashboardController : Controller
     }
 
     // Admin/Dean/ProgramChair dashboard
-    [Authorize(Roles = "Admin,CEO,Dean,ProgramChair")]
+    [Authorize(Roles = "Admin,CEO,Dean,ProgramChair,AA,AAStaff,QA")]
     public async Task<IActionResult> Index()
     {
         var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
@@ -122,7 +122,7 @@ public class DashboardController : Controller
     }
 
     // API endpoint for chart data
-    [Authorize(Roles = "Admin,CEO,Dean,ProgramChair")]
+    [Authorize(Roles = "Admin,CEO,Dean,ProgramChair,AA,AAStaff,QA")]
     [HttpGet]
     public async Task<IActionResult> ChartData(string type)
     {

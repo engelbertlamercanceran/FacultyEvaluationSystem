@@ -15,7 +15,7 @@ public static class DbSeeder
         await context.Database.MigrateAsync();
 
         // Seed roles
-        string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student"];
+        string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student", "AA", "AAStaff", "QA"];
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
@@ -35,6 +35,51 @@ public static class DbSeeder
             };
             await userManager.CreateAsync(admin, "Admin@123");
             await userManager.AddToRoleAsync(admin, "Admin");
+        }
+
+        // Seed AA test user
+        if (await userManager.FindByEmailAsync("aa@isuc.edu.ph") is null)
+        {
+            var aa = new ApplicationUser
+            {
+                UserName = "aa@isuc.edu.ph",
+                Email = "aa@isuc.edu.ph",
+                FirstName = "Academic",
+                LastName = "Affairs",
+                EmailConfirmed = true
+            };
+            await userManager.CreateAsync(aa, "Aa@12345");
+            await userManager.AddToRoleAsync(aa, "AA");
+        }
+
+        // Seed AA Staff test user
+        if (await userManager.FindByEmailAsync("aastaff@isuc.edu.ph") is null)
+        {
+            var aaStaff = new ApplicationUser
+            {
+                UserName = "aastaff@isuc.edu.ph",
+                Email = "aastaff@isuc.edu.ph",
+                FirstName = "AA",
+                LastName = "Staff",
+                EmailConfirmed = true
+            };
+            await userManager.CreateAsync(aaStaff, "Aastaff@123");
+            await userManager.AddToRoleAsync(aaStaff, "AAStaff");
+        }
+
+        // Seed QA test user
+        if (await userManager.FindByEmailAsync("qa@isuc.edu.ph") is null)
+        {
+            var qa = new ApplicationUser
+            {
+                UserName = "qa@isuc.edu.ph",
+                Email = "qa@isuc.edu.ph",
+                FirstName = "Quality",
+                LastName = "Assurance",
+                EmailConfirmed = true
+            };
+            await userManager.CreateAsync(qa, "Qa@12345");
+            await userManager.AddToRoleAsync(qa, "QA");
         }
 
         // Seed evaluation criteria (CHED CMO No. 19 - system config, not user data)

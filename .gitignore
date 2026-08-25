@@ -1,0 +1,43 @@
+## .NET
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+## Build outputs
+*.dll
+*.exe
+*.pdb
+*.cache
+*.nupkg
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+## Rider
+.idea/
+
+## NuGet
+packages/
+*.nuget.props
+*.nuget.targets
+
+## User secrets
+appsettings.Development.json
+
+## OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+## Logs
+*.log
+
+## Test results
+TestResults/
+[Tt]est[Rr]esults/

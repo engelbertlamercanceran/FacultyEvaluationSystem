@@ -82,12 +82,12 @@
                 <span class="badge bg-warning text-dark" style="font-size:10px;">@role</span>
             </div>
 
-            @if (role is "Admin" or "CEO" or "Dean" or "ProgramChair")
+            @if (role is "Admin" or "CEO" or "Dean" or "ProgramChair" or "AA" or "AAStaff" or "QA")
             {
                 <div class="nav-section">Main</div>
                 <a class="nav-link" asp-controller="Dashboard" asp-action="Index">Dashboard</a>
 
-                if (role is "Admin" or "CEO")
+                if (role is "Admin" or "CEO" or "AA")
                 {
                     <a class="nav-link" asp-controller="Results" asp-action="Index">Evaluation Results</a>
                 }
@@ -99,9 +99,15 @@
                     <a class="nav-link" asp-controller="Admin" asp-action="Colleges">Colleges & Programs</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Criteria">Evaluation Criteria</a>
-                    <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Periods</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Subject Assignments</a>
                     <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Batch Import</a>
+                }
+
+                if (role == "AAStaff")
+                {
+                    <div class="nav-section">Academic Affairs</div>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Faculty Teaching Load</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Schedule</a>
                 }
 
                 if (role is "Dean" or "ProgramChair")
@@ -109,6 +115,12 @@
                     <div class="nav-section">Evaluation</div>
                     <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Faculty</a>
                     <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
+                }
+
+                if (role is "QA")
+                {
+                    <div class="nav-section">Quality Assurance</div>
+                    <a class="nav-link" asp-controller="Results" asp-action="Index">Evaluation Summary</a>
                 }
             }
             else if (role == "Faculty")

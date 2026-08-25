@@ -12,7 +12,7 @@ using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,CEO,Dean,ProgramChair,Faculty")]
+[Authorize(Roles = "Admin,CEO,AA,Dean,ProgramChair,Faculty,QA")]
 public class ReportsController : Controller
 {
     private readonly ApplicationDbContext _db;
@@ -28,7 +28,7 @@ public class ReportsController : Controller
 
     // Generate Individual Faculty Evaluation Report (IFER) PDF
     [HttpGet]
-    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty")]
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA")]
     public async Task<IActionResult> IFER(int periodId, string? facultyId)
     {
         // Faculty can only view their own
@@ -175,7 +175,7 @@ public class ReportsController : Controller
     // Generate Faculty Evaluation and Development Acknowledgement Form (FEDAF) PDF
     // Per CHED CMO No. 19, Series of 2025 - Annex D
     [HttpGet]
-    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty")]
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA")]
     public async Task<IActionResult> FEDAF(int periodId, string? facultyId)
     {
         if (User.IsInRole("Faculty"))
@@ -363,7 +363,7 @@ public class ReportsController : Controller
 
     // Generate summary report for all faculty in a period
     [HttpGet]
-    [Authorize(Roles = "Admin,CEO,Dean,ProgramChair")]
+    [Authorize(Roles = "Admin,CEO,AA,Dean,ProgramChair,QA")]
     public async Task<IActionResult> SummaryReport(int periodId)
     {
         var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstOrDefaultAsync(p => p.Id == periodId);

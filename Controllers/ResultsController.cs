@@ -6,7 +6,7 @@ using FacultyEvalSystem.Data;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,CEO")]
+[Authorize(Roles = "Admin,CEO,AA,QA")]
 public class ResultsController : Controller
 {
     private readonly ApplicationDbContext _db;
