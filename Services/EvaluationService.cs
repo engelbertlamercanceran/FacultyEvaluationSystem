@@ -10,9 +10,8 @@ public class EvaluationService
 
     public EvaluationService(ApplicationDbContext db) => _db = db;
 
-    // Student weight = 60%, Supervisor weight = 40% per CMO No. 19
-    private const double StudentWeight = 0.60;
-    private const double SupervisorWeight = 0.40;
+    // Max possible score per CMO No. 19: 15 items × 5 = 75
+    private const double MaxScore = 75.0;
 
     public async Task ComputeResultsAsync(int evaluationPeriodId)
     {
@@ -32,24 +31,14 @@ public class EvaluationService
     {
         var evaluations = await _db.Evaluations
             .Include(e => e.Responses)
-                .ThenInclude(r => r.Criterion)
-                    .ThenInclude(c => c.Category)
             .Where(e => e.EvaluationPeriodId == evaluationPeriodId && e.FacultyId == facultyId)
             .ToListAsync();
 
         var studentEvals = evaluations.Where(e => e.EvaluatorType == "Student").ToList();
         var supervisorEvals = evaluations.Where(e => e.EvaluatorType == "Supervisor").ToList();
 
-        double studentRating = ComputeWeightedRating(studentEvals);
-        double supervisorRating = ComputeWeightedRating(supervisorEvals);
-
-        double overall = 0;
-        if (studentEvals.Count > 0 && supervisorEvals.Count > 0)
-            overall = (studentRating * StudentWeight) + (supervisorRating * SupervisorWeight);
-        else if (studentEvals.Count > 0)
-            overall = studentRating;
-        else if (supervisorEvals.Count > 0)
-            overall = supervisorRating;
+        double studentRating = ComputeClassWeightedSETRating(studentEvals);
+        double supervisorRating = ComputeSEFRating(supervisorEvals);
 
         var existing = await _db.EvaluationResults
             .FirstOrDefaultAsync(r => r.EvaluationPeriodId == evaluationPeriodId && r.FacultyId == facultyId);
@@ -60,8 +49,8 @@ public class EvaluationService
             existing.StudentRespondents = studentEvals.Count;
             existing.SupervisorRating = Math.Round(supervisorRating, 2);
             existing.SupervisorRespondents = supervisorEvals.Count;
-            existing.OverallRating = Math.Round(overall, 2);
-            existing.DescriptiveRating = EvaluationResult.GetDescriptiveRating(overall);
+            existing.StudentDescriptiveRating = studentEvals.Count > 0 ? EvaluationResult.GetDescriptiveRating(studentRating) : "";
+            existing.SupervisorDescriptiveRating = supervisorEvals.Count > 0 ? EvaluationResult.GetDescriptiveRating(supervisorRating) : "";
             existing.ComputedAt = DateTime.Now;
         }
         else
@@ -74,37 +63,56 @@ public class EvaluationService
                 StudentRespondents = studentEvals.Count,
                 SupervisorRating = Math.Round(supervisorRating, 2),
                 SupervisorRespondents = supervisorEvals.Count,
-                OverallRating = Math.Round(overall, 2),
-                DescriptiveRating = EvaluationResult.GetDescriptiveRating(overall),
+                StudentDescriptiveRating = studentEvals.Count > 0 ? EvaluationResult.GetDescriptiveRating(studentRating) : "",
+                SupervisorDescriptiveRating = supervisorEvals.Count > 0 ? EvaluationResult.GetDescriptiveRating(supervisorRating) : "",
             });
         }
 
         await _db.SaveChangesAsync();
     }
 
-    private static double ComputeWeightedRating(List<Evaluation> evaluations)
+    /// <summary>
+    /// CMO Section 8.3: Weighted computation of overall SET rating by class size.
+    /// Step 1: Get average SET rating per class.
+    /// Step 2: Multiply by number of students in that class.
+    /// Step 3: Overall SET = total weighted score / total students.
+    /// Formula per evaluator: Rating = (Total Score / 75) × 100
+    /// </summary>
+    private static double ComputeClassWeightedSETRating(List<Evaluation> studentEvals)
     {
-        if (evaluations.Count == 0) return 0;
+        if (studentEvals.Count == 0) return 0;
 
-        var allResponses = evaluations.SelectMany(e => e.Responses).ToList();
-        if (allResponses.Count == 0) return 0;
+        // Group by class (FacultySubjectId)
+        var byClass = studentEvals.GroupBy(e => e.FacultySubjectId).ToList();
 
-        // Group by category to apply weights
-        var categoryGroups = allResponses
-            .GroupBy(r => r.Criterion.Category)
-            .ToList();
+        double totalWeightedScore = 0;
+        int totalStudents = 0;
 
-        double totalWeight = categoryGroups.Sum(g => g.Key.Weight);
-        if (totalWeight == 0) return 0;
-
-        double weightedSum = 0;
-        foreach (var group in categoryGroups)
+        foreach (var classGroup in byClass)
         {
-            double categoryAvg = group.Average(r => r.Rating);
-            weightedSum += categoryAvg * (group.Key.Weight / totalWeight);
+            var classEvals = classGroup.ToList();
+            int numStudents = classEvals.Count;
+
+            // Average SET rating for this class
+            double classAvg = classEvals.Average(e =>
+                (e.Responses.Sum(r => r.Rating) / MaxScore) * 100);
+
+            totalWeightedScore += numStudents * classAvg;
+            totalStudents += numStudents;
         }
 
-        return weightedSum;
+        return totalStudents > 0 ? totalWeightedScore / totalStudents : 0;
+    }
+
+    /// <summary>
+    /// SEF Rating = (Total Score / 75) × 100, averaged across supervisors.
+    /// </summary>
+    private static double ComputeSEFRating(List<Evaluation> supervisorEvals)
+    {
+        if (supervisorEvals.Count == 0) return 0;
+
+        return supervisorEvals.Average(e =>
+            (e.Responses.Sum(r => r.Rating) / MaxScore) * 100);
     }
 
     public async Task<Dictionary<string, double>> GetCategoryBreakdownAsync(int evaluationPeriodId, string facultyId, string evaluatorType)

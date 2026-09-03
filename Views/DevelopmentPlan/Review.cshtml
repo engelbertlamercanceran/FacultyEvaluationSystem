@@ -15,8 +15,9 @@
             </div>
             <div class="col-md-6 text-end">
                 <strong>@result.EvaluationPeriod.Semester.DisplayName</strong><br/>
-                <span class="badge badge-@result.DescriptiveRating.ToLower().Replace(" ", "-")">@result.DescriptiveRating</span>
-                <strong class="ms-2">@result.OverallRating.ToString("F2")</strong>
+                <span class="badge bg-secondary">@result.StudentDescriptiveRating</span>
+                <strong class="ms-2">SET: @result.StudentRating.ToString("F2")</strong>
+                <strong class="ms-2">SEF: @result.SupervisorRating.ToString("F2")</strong>
             </div>
         </div>
     </div>

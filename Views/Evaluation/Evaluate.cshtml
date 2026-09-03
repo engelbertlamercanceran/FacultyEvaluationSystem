@@ -48,12 +48,12 @@
                 <table class="table mb-0">
                     <thead>
                         <tr>
-                            <th style="width:50%">Criteria</th>
-                            <th class="text-center">1<br/><small>Strongly Disagree</small></th>
-                            <th class="text-center">2<br/><small>Disagree</small></th>
-                            <th class="text-center">3<br/><small>Neutral</small></th>
-                            <th class="text-center">4<br/><small>Agree</small></th>
-                            <th class="text-center">5<br/><small>Strongly Agree</small></th>
+                            <th style="width:40%">Benchmark Statements</th>
+                            <th class="text-center">5<br/><small>Always Manifested</small></th>
+                            <th class="text-center">4<br/><small>Often Manifested</small></th>
+                            <th class="text-center">3<br/><small>Sometimes Manifested</small></th>
+                            <th class="text-center">2<br/><small>Seldom Manifested</small></th>
+                            <th class="text-center">1<br/><small>Never/Rarely Manifested</small></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -66,7 +66,7 @@
                                     <input type="hidden" name="Categories[@c].Criteria[@i].CriterionId" value="@criterion.CriterionId" />
                                     <input type="hidden" name="Categories[@c].Criteria[@i].Description" value="@criterion.Description" />
                                 </td>
-                                @for (int r = 1; r <= 5; r++)
+                                @for (int r = 5; r >= 1; r--)
                                 {
                                     <td class="text-center">
                                         <input type="radio"
@@ -117,6 +117,7 @@
                     </div>
                 </div>
                 <div id="categoryBreakdown" class="mb-3"></div>
+                <p class="text-muted small mb-2">Formula: (Total Score / 75) &times; 100</p>
                 <p class="text-danger small mb-0">This action cannot be undone.</p>
             </div>
             <div class="modal-footer">
@@ -150,10 +151,11 @@
             return;
         }
 
-        // Compute per-category averages and overall
+        // Compute per-category averages and overall percentage rating
+        // Formula per CMO: Rating = (Total Score / 75) × 100
         var categories = document.querySelectorAll('.criteria-card');
-        var breakdownHtml = '<table class="table table-sm mb-0"><thead><tr><th>Category</th><th class="text-center">Average</th></tr></thead><tbody>';
-        var totalSum = 0, totalCount = 0;
+        var breakdownHtml = '<table class="table table-sm mb-0"><thead><tr><th>Category</th><th class="text-center">Average (1-5)</th></tr></thead><tbody>';
+        var totalScore = 0;
 
         categories.forEach(function (card) {
             var header = card.querySelector('.card-header strong');
@@ -165,23 +167,22 @@
             var sum = 0;
             radios.forEach(function (r) { sum += parseInt(r.value); });
             var avg = sum / radios.length;
-            totalSum += sum;
-            totalCount += radios.length;
+            totalScore += sum;
 
             breakdownHtml += '<tr><td>' + catName + '</td><td class="text-center"><strong>' + avg.toFixed(2) + '</strong></td></tr>';
         });
 
         breakdownHtml += '</tbody></table>';
-        var overall = totalCount > 0 ? (totalSum / totalCount) : 0;
+        var rating = (totalScore / 75) * 100;
 
-        document.getElementById('computedRating').textContent = overall.toFixed(2);
+        document.getElementById('computedRating').textContent = rating.toFixed(2) + '%';
         document.getElementById('categoryBreakdown').innerHTML = breakdownHtml;
 
-        // Descriptive rating
-        var desc = overall >= 4.5 ? 'Outstanding' : overall >= 3.5 ? 'Very Satisfactory' : overall >= 2.5 ? 'Satisfactory' : overall >= 1.5 ? 'Fair' : 'Poor';
+        // Descriptive rating per CMO rating scale operational definitions
+        var desc = rating >= 91 ? 'Always Manifested' : rating >= 61 ? 'Often Manifested' : rating >= 31 ? 'Sometimes Manifested' : rating >= 11 ? 'Seldom Manifested' : 'Never/Rarely Manifested';
         var descEl = document.getElementById('computedDesc');
         descEl.textContent = desc;
-        descEl.className = 'badge badge-' + desc.toLowerCase().replace(' ', '-');
+        descEl.className = 'badge bg-success';
 
         var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
         modal.show();

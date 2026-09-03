@@ -28,11 +28,11 @@
                         <th>#</th>
                         <th>Faculty Name</th>
                         <th>College</th>
-                        <th class="text-center">Student Rating</th>
-                        <th class="text-center">Respondents</th>
-                        <th class="text-center">Supervisor Rating</th>
-                        <th class="text-center">Overall</th>
-                        <th>Description</th>
+                        <th class="text-center">SET Rating</th>
+                        <th class="text-center">Students</th>
+                        <th class="text-center">SEF Rating</th>
+                        <th class="text-center">Supervisors</th>
+                        <th>SET Description</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -44,12 +44,12 @@
                             <td>@(i + 1)</td>
                             <td>@r.Faculty.FullName</td>
                             <td>@(r.Faculty.College?.Code ?? "N/A")</td>
-                            <td class="text-center">@r.StudentRating.ToString("F2")</td>
+                            <td class="text-center"><strong>@r.StudentRating.ToString("F2")</strong></td>
                             <td class="text-center">@r.StudentRespondents</td>
-                            <td class="text-center">@r.SupervisorRating.ToString("F2")</td>
-                            <td class="text-center"><strong>@r.OverallRating.ToString("F2")</strong></td>
+                            <td class="text-center"><strong>@r.SupervisorRating.ToString("F2")</strong></td>
+                            <td class="text-center">@r.SupervisorRespondents</td>
                             <td>
-                                <span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span>
+                                <span class="badge bg-secondary">@r.StudentDescriptiveRating</span>
                             </td>
                             <td>
                                 <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"

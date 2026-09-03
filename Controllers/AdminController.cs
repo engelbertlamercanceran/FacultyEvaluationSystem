@@ -319,7 +319,7 @@ public class AdminController : Controller
                 .Include(r => r.Faculty).ThenInclude(f => f.College)
                 .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
                 .Where(r => r.EvaluationPeriodId == periodId.Value)
-                .OrderByDescending(r => r.OverallRating)
+                .OrderByDescending(r => r.StudentRating)
                 .ToListAsync()
             : [];
 
@@ -370,13 +370,12 @@ public class AdminController : Controller
     [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateCategory(string name, string evaluatorType, double weight, int sortOrder)
+    public async Task<IActionResult> CreateCategory(string name, string evaluatorType, int sortOrder)
     {
         _db.EvaluationCategories.Add(new EvaluationCategory
         {
             Name = name,
             EvaluatorType = evaluatorType,
-            Weight = weight,
             SortOrder = sortOrder
         });
         await _db.SaveChangesAsync();
@@ -387,14 +386,13 @@ public class AdminController : Controller
     [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateCategory(int id, string name, string evaluatorType, double weight, int sortOrder)
+    public async Task<IActionResult> UpdateCategory(int id, string name, string evaluatorType, int sortOrder)
     {
         var category = await _db.EvaluationCategories.FindAsync(id);
         if (category is not null)
         {
             category.Name = name;
             category.EvaluatorType = evaluatorType;
-            category.Weight = weight;
             category.SortOrder = sortOrder;
             await _db.SaveChangesAsync();
             TempData["Success"] = $"Category \"{name}\" updated.";

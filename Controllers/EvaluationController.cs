@@ -236,19 +236,14 @@ public class EvaluationController : Controller
                 average = g.Average(r => (double)r.Rating)
             }).ToList();
 
-        var overall = eval.Responses.Average(r => (double)r.Rating);
+        double totalScore = eval.Responses.Sum(r => r.Rating);
+        double rating = (totalScore / 75.0) * 100;
 
         return Json(new {
             facultyName = eval.Faculty.FullName,
             categories,
-            overall,
-            description = GetDescriptiveRating(overall)
+            rating = Math.Round(rating, 2),
+            description = EvaluationResult.GetDescriptiveRating(rating)
         });
     }
-
-    private static string GetDescriptiveRating(double rating) =>
-        rating >= 4.5 ? "Outstanding" :
-        rating >= 3.5 ? "Very Satisfactory" :
-        rating >= 2.5 ? "Satisfactory" :
-        rating >= 1.5 ? "Fair" : "Poor";
 }

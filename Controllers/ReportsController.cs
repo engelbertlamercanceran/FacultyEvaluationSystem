@@ -27,6 +27,7 @@ public class ReportsController : Controller
     }
 
     // Generate Individual Faculty Evaluation Report (IFER) PDF
+    // Per CHED CMO No. 19, Series of 2025 - Annex C
     [HttpGet]
     [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA")]
     public async Task<IActionResult> IFER(int periodId, string? facultyId)
@@ -42,8 +43,8 @@ public class ReportsController : Controller
 
         if (result is null) return NotFound("No evaluation results found.");
 
-        var studentBreakdown = await _evalService.GetCategoryBreakdownAsync(periodId, facultyId, "Student");
-        var supervisorBreakdown = await _evalService.GetCategoryBreakdownAsync(periodId, facultyId, "Supervisor");
+        var studentBreakdown = await _evalService.GetCategoryBreakdownAsync(periodId, facultyId!, "Student");
+        var supervisorBreakdown = await _evalService.GetCategoryBreakdownAsync(periodId, facultyId!, "Supervisor");
 
         var pdf = Document.Create(container =>
         {
@@ -58,6 +59,7 @@ public class ReportsController : Controller
                     col.Item().AlignCenter().Text("ISABELA STATE UNIVERSITY").Bold().FontSize(14);
                     col.Item().AlignCenter().Text("Cabagan Campus");
                     col.Item().AlignCenter().Text("INDIVIDUAL FACULTY EVALUATION REPORT (IFER)").Bold().FontSize(12);
+                    col.Item().AlignCenter().Text("Per CHED CMO No. 19, Series of 2025 — Annex C").FontSize(9).Italic();
                     col.Item().PaddingBottom(10);
                 });
 
@@ -75,8 +77,8 @@ public class ReportsController : Controller
                     });
                     col.Item().PaddingVertical(10).LineHorizontal(1);
 
-                    // Student Evaluation
-                    col.Item().Text("A. STUDENT EVALUATION (60%)").Bold();
+                    // Student Evaluation (SET)
+                    col.Item().Text("A. STUDENT EVALUATION OF TEACHERS (SET)").Bold();
                     col.Item().Text($"   Number of Respondents: {result.StudentRespondents}");
                     col.Item().PaddingVertical(5);
 
@@ -92,7 +94,7 @@ public class ReportsController : Controller
                             table.Header(header =>
                             {
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Category").Bold();
-                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignCenter().Text("Rating").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignCenter().Text("Average (1-5)").Bold();
                             });
                             foreach (var cat in studentBreakdown)
                             {
@@ -101,11 +103,13 @@ public class ReportsController : Controller
                             }
                         });
                     }
-                    col.Item().Text($"   Student Rating: {result.StudentRating:F2}").Bold();
+                    col.Item().PaddingTop(5).Text($"   SET Rating: {result.StudentRating:F2}").Bold();
+                    if (!string.IsNullOrEmpty(result.StudentDescriptiveRating))
+                        col.Item().Text($"   Descriptive Rating: {result.StudentDescriptiveRating}");
                     col.Item().PaddingVertical(10);
 
-                    // Supervisor Evaluation
-                    col.Item().Text("B. SUPERVISOR EVALUATION (40%)").Bold();
+                    // Supervisor Evaluation (SEF)
+                    col.Item().Text("B. SUPERVISOR'S EVALUATION OF FACULTY (SEF)").Bold();
                     col.Item().Text($"   Number of Respondents: {result.SupervisorRespondents}");
                     col.Item().PaddingVertical(5);
 
@@ -121,7 +125,7 @@ public class ReportsController : Controller
                             table.Header(header =>
                             {
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Category").Bold();
-                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignCenter().Text("Rating").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignCenter().Text("Average (1-5)").Bold();
                             });
                             foreach (var cat in supervisorBreakdown)
                             {
@@ -130,13 +134,32 @@ public class ReportsController : Controller
                             }
                         });
                     }
-                    col.Item().Text($"   Supervisor Rating: {result.SupervisorRating:F2}").Bold();
+                    col.Item().PaddingTop(5).Text($"   SEF Rating: {result.SupervisorRating:F2}").Bold();
+                    if (!string.IsNullOrEmpty(result.SupervisorDescriptiveRating))
+                        col.Item().Text($"   Descriptive Rating: {result.SupervisorDescriptiveRating}");
                     col.Item().PaddingVertical(10);
 
-                    // Overall
+                    // Summary table matching ANNEX C format
                     col.Item().LineHorizontal(1);
-                    col.Item().PaddingVertical(5);
-                    col.Item().Text($"OVERALL RATING: {result.OverallRating:F2} ({result.DescriptiveRating})").Bold().FontSize(12);
+                    col.Item().PaddingVertical(5).Text("C. SET AND SEF RATINGS").Bold();
+                    col.Item().PaddingVertical(5).Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(1);
+                            columns.RelativeColumn(1);
+                        });
+                        table.Header(header =>
+                        {
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(8).AlignCenter().Text("SET Rating").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(8).AlignCenter().Text("SEF Rating").Bold();
+                        });
+                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(10).AlignCenter()
+                            .Text(result.StudentRating.ToString("F2")).Bold().FontSize(14);
+                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(10).AlignCenter()
+                            .Text(result.SupervisorRating.ToString("F2")).Bold().FontSize(14);
+                    });
+
                     col.Item().PaddingVertical(20);
 
                     // Signatures
@@ -146,14 +169,22 @@ public class ReportsController : Controller
                         {
                             c.Item().Text("Prepared by:").FontSize(9);
                             c.Item().PaddingTop(25).LineHorizontal(1);
-                            c.Item().Text("Quality Assurance Officer").FontSize(9);
+                            c.Item().Text("Signature of Staff").FontSize(9);
+                            c.Item().PaddingTop(5).LineHorizontal(1);
+                            c.Item().Text("Name of Staff").FontSize(9);
+                            c.Item().PaddingTop(5).LineHorizontal(1);
+                            c.Item().Text("Date").FontSize(9);
                         });
                         row.ConstantItem(40);
                         row.RelativeItem().Column(c =>
                         {
-                            c.Item().Text("Noted by:").FontSize(9);
+                            c.Item().Text("Reviewed by:").FontSize(9);
                             c.Item().PaddingTop(25).LineHorizontal(1);
-                            c.Item().Text("Dean / Program Chair").FontSize(9);
+                            c.Item().Text("Signature of Authorized Official").FontSize(9);
+                            c.Item().PaddingTop(5).LineHorizontal(1);
+                            c.Item().Text("Name of Authorized Official").FontSize(9);
+                            c.Item().PaddingTop(5).LineHorizontal(1);
+                            c.Item().Text("Date").FontSize(9);
                         });
                     });
                 });
@@ -372,7 +403,7 @@ public class ReportsController : Controller
         var results = await _db.EvaluationResults
             .Include(r => r.Faculty).ThenInclude(f => f.College)
             .Where(r => r.EvaluationPeriodId == periodId)
-            .OrderByDescending(r => r.OverallRating)
+            .OrderByDescending(r => r.StudentRating)
             .ToListAsync();
 
         var pdf = Document.Create(container =>
@@ -387,6 +418,7 @@ public class ReportsController : Controller
                 {
                     col.Item().AlignCenter().Text("ISABELA STATE UNIVERSITY - CABAGAN").Bold().FontSize(13);
                     col.Item().AlignCenter().Text("FACULTY EVALUATION SUMMARY REPORT").Bold().FontSize(11);
+                    col.Item().AlignCenter().Text("Per CHED CMO No. 19, Series of 2025").FontSize(9).Italic();
                     col.Item().AlignCenter().Text(period.Semester.DisplayName);
                     col.Item().PaddingBottom(10);
                 });
@@ -403,6 +435,7 @@ public class ReportsController : Controller
                         columns.RelativeColumn(1);
                         columns.RelativeColumn(1);
                         columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1.5f);
                     });
 
                     table.Header(header =>
@@ -411,11 +444,12 @@ public class ReportsController : Controller
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("#").Style(style);
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Faculty Name").Style(style);
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("College").Style(style);
-                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("Student").Style(style);
-                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("# Resp.").Style(style);
-                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("Supervisor").Style(style);
-                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("Overall").Style(style);
-                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("Description").Style(style);
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SET Rating").Style(style);
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("# Students").Style(style);
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SEF Rating").Style(style);
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("# Supervisors").Style(style);
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SET Description").Style(style);
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SEF Description").Style(style);
                     });
 
                     for (int i = 0; i < results.Count; i++)
@@ -428,8 +462,9 @@ public class ReportsController : Controller
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.StudentRating.ToString("F2"));
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.StudentRespondents.ToString());
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.SupervisorRating.ToString("F2"));
-                        table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.OverallRating.ToString("F2"));
-                        table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.DescriptiveRating);
+                        table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.SupervisorRespondents.ToString());
+                        table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.StudentDescriptiveRating);
+                        table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.SupervisorDescriptiveRating);
                     }
                 });
 

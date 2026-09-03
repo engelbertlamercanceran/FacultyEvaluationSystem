@@ -82,109 +82,96 @@ public static class DbSeeder
             await userManager.AddToRoleAsync(qa, "QA");
         }
 
-        // Seed evaluation criteria (CHED CMO No. 19 - system config, not user data)
-        if (!context.EvaluationCategories.Any())
+        // Seed evaluation criteria per CHED CMO No. 19, Series of 2025
+        // Re-seed if old NBC 461 categories detected or table is empty
+        bool needsReseed = !context.EvaluationCategories.Any()
+            || await context.EvaluationCategories.AnyAsync(c => c.Name == "Communication Skills")
+            || await context.EvaluationCategories.AnyAsync(c => c.Name == "Community and Professional Service");
+
+        if (needsReseed)
         {
+            // Clear old categories (cascades to criteria via FK)
+            context.EvaluationCategories.RemoveRange(context.EvaluationCategories);
+            await context.SaveChangesAsync();
+
+            // ANNEX A: Student Evaluation of Teachers (SET) — 3 categories, 15 items
             var studentCategories = new List<EvaluationCategory>
             {
                 new()
                 {
-                    Name = "Commitment", SortOrder = 1, EvaluatorType = "Student", Weight = 20,
+                    Name = "Management of Teaching and Learning", SortOrder = 1, EvaluatorType = "Student",
                     Criteria =
                     [
-                        new() { Description = "Demonstrates sensitivity to students' ability to attend and participate in class activities", SortOrder = 1 },
-                        new() { Description = "Integrates and shares personal and professional experiences in teaching", SortOrder = 2 },
-                        new() { Description = "Maintains a professional relationship with students and encourages them to do their best", SortOrder = 3 },
-                        new() { Description = "Shows fairness and impartiality in dealing with students", SortOrder = 4 },
+                        new() { Description = "Comes to class on time.", SortOrder = 1 },
+                        new() { Description = "Explains learning outcomes, expectations, grading system, and various requirements of the subject/course.", SortOrder = 2 },
+                        new() { Description = "Maximizes the allocated time/learning hours effectively.", SortOrder = 3 },
+                        new() { Description = "Facilitates students to think critically and creatively by providing appropriate learning activities.", SortOrder = 4 },
+                        new() { Description = "Guides students to learn on their own, reflect on new ideas and experiences, and make decisions in accomplishing given tasks.", SortOrder = 5 },
+                        new() { Description = "Communicates constructive feedback to students for their academic growth.", SortOrder = 6 },
                     ]
                 },
                 new()
                 {
-                    Name = "Knowledge of Subject", SortOrder = 2, EvaluatorType = "Student", Weight = 20,
+                    Name = "Content Knowledge, Pedagogy and Technology", SortOrder = 2, EvaluatorType = "Student",
                     Criteria =
                     [
-                        new() { Description = "Demonstrates mastery of the subject matter", SortOrder = 1 },
-                        new() { Description = "Draws and discusses illustrations and examples from actual/current situations", SortOrder = 2 },
-                        new() { Description = "Integrates subject matter with other disciplines and real-life situations", SortOrder = 3 },
-                        new() { Description = "Keeps abreast of new trends and developments in the field", SortOrder = 4 },
+                        new() { Description = "Demonstrates extensive and broad knowledge of the subject/course.", SortOrder = 7 },
+                        new() { Description = "Simplifies complex ideas in the lesson for ease of understanding.", SortOrder = 8 },
+                        new() { Description = "Relates the subject matter to contemporary issues and developments in the discipline and/or daily life activities.", SortOrder = 9 },
+                        new() { Description = "Promotes active learning and student engagement by using appropriate teaching and learning resources including ICT tools and platforms.", SortOrder = 10 },
+                        new() { Description = "Uses appropriate assessments (projects, exams, quizzes, assignments, etc.) aligned with the learning outcomes.", SortOrder = 11 },
                     ]
                 },
                 new()
                 {
-                    Name = "Teaching for Independent Learning", SortOrder = 3, EvaluatorType = "Student", Weight = 20,
+                    Name = "Commitment and Transparency", SortOrder = 3, EvaluatorType = "Student",
                     Criteria =
                     [
-                        new() { Description = "Creates situations that encourage students to think critically and creatively", SortOrder = 1 },
-                        new() { Description = "Encourages students to express their own ideas and opinions", SortOrder = 2 },
-                        new() { Description = "Provides varied learning activities and assessment tasks", SortOrder = 3 },
-                        new() { Description = "Gives timely and constructive feedback on student outputs and performances", SortOrder = 4 },
-                    ]
-                },
-                new()
-                {
-                    Name = "Management of Learning", SortOrder = 4, EvaluatorType = "Student", Weight = 20,
-                    Criteria =
-                    [
-                        new() { Description = "Creates a conducive learning environment", SortOrder = 1 },
-                        new() { Description = "Starts and ends classes on time", SortOrder = 2 },
-                        new() { Description = "Uses varied teaching strategies and instructional materials", SortOrder = 3 },
-                        new() { Description = "Clearly presents the course requirements, grading system, and classroom policies", SortOrder = 4 },
-                    ]
-                },
-                new()
-                {
-                    Name = "Communication Skills", SortOrder = 5, EvaluatorType = "Student", Weight = 20,
-                    Criteria =
-                    [
-                        new() { Description = "Communicates ideas clearly and effectively", SortOrder = 1 },
-                        new() { Description = "Uses appropriate language and communication tools", SortOrder = 2 },
-                        new() { Description = "Encourages student participation and interaction", SortOrder = 3 },
-                        new() { Description = "Listens to students' concerns and responds appropriately", SortOrder = 4 },
+                        new() { Description = "Recognizes and values the unique diversity and individual differences among students.", SortOrder = 12 },
+                        new() { Description = "Assists students with their learning challenges during consultation hours.", SortOrder = 13 },
+                        new() { Description = "Provides immediate feedback on student outputs and performance.", SortOrder = 14 },
+                        new() { Description = "Provides transparent and clear criteria in rating student's performance.", SortOrder = 15 },
                     ]
                 },
             };
 
+            // ANNEX B: Supervisor's Evaluation of Faculty (SEF) — 3 categories, 15 items (same benchmark statements)
             var supervisorCategories = new List<EvaluationCategory>
             {
                 new()
                 {
-                    Name = "Commitment", SortOrder = 1, EvaluatorType = "Supervisor", Weight = 25,
+                    Name = "Management of Teaching and Learning", SortOrder = 1, EvaluatorType = "Supervisor",
                     Criteria =
                     [
-                        new() { Description = "Demonstrates dedication and commitment to the teaching profession", SortOrder = 1 },
-                        new() { Description = "Complies with institutional policies and requirements", SortOrder = 2 },
-                        new() { Description = "Participates actively in department and institutional activities", SortOrder = 3 },
-                        new() { Description = "Maintains professional growth through continuing education and research", SortOrder = 4 },
+                        new() { Description = "Comes to class on time.", SortOrder = 1 },
+                        new() { Description = "Submits updated syllabus, grade sheets, and other required reports on time.", SortOrder = 2 },
+                        new() { Description = "Maximizes the allocated time/learning hours effectively.", SortOrder = 3 },
+                        new() { Description = "Provides appropriate learning activities that facilitate critical thinking and creativity of students.", SortOrder = 4 },
+                        new() { Description = "Guides students to learn on their own, reflect on new ideas and experiences, and make decisions in accomplishing given tasks.", SortOrder = 5 },
+                        new() { Description = "Communicates constructive feedback to students for their academic growth.", SortOrder = 6 },
                     ]
                 },
                 new()
                 {
-                    Name = "Knowledge of Subject", SortOrder = 2, EvaluatorType = "Supervisor", Weight = 25,
+                    Name = "Content Knowledge, Pedagogy and Technology", SortOrder = 2, EvaluatorType = "Supervisor",
                     Criteria =
                     [
-                        new() { Description = "Demonstrates thorough knowledge and understanding of the subject", SortOrder = 1 },
-                        new() { Description = "Aligns course content with program objectives and outcomes", SortOrder = 2 },
-                        new() { Description = "Updates instructional materials based on current developments", SortOrder = 3 },
+                        new() { Description = "Demonstrates extensive and broad knowledge of the subject/course.", SortOrder = 7 },
+                        new() { Description = "Simplifies complex ideas in the lesson for ease of understanding.", SortOrder = 8 },
+                        new() { Description = "Integrates contemporary issues and developments in the discipline and/or daily life activities in the syllabus.", SortOrder = 9 },
+                        new() { Description = "Promotes active learning and student engagement by using appropriate teaching and learning resources including ICT tools and platforms.", SortOrder = 10 },
+                        new() { Description = "Uses appropriate assessments (projects, exams, quizzes, assignments, etc.) aligned with the learning outcomes.", SortOrder = 11 },
                     ]
                 },
                 new()
                 {
-                    Name = "Teaching Effectiveness", SortOrder = 3, EvaluatorType = "Supervisor", Weight = 25,
+                    Name = "Commitment and Transparency", SortOrder = 3, EvaluatorType = "Supervisor",
                     Criteria =
                     [
-                        new() { Description = "Employs effective teaching strategies and methodologies", SortOrder = 1 },
-                        new() { Description = "Uses appropriate assessment tools to measure student learning", SortOrder = 2 },
-                        new() { Description = "Submits required reports and grades on time", SortOrder = 3 },
-                    ]
-                },
-                new()
-                {
-                    Name = "Community and Professional Service", SortOrder = 4, EvaluatorType = "Supervisor", Weight = 25,
-                    Criteria =
-                    [
-                        new() { Description = "Engages in community extension and outreach activities", SortOrder = 1 },
-                        new() { Description = "Contributes to research and professional development", SortOrder = 2 },
-                        new() { Description = "Supports and mentors colleagues and students beyond the classroom", SortOrder = 3 },
+                        new() { Description = "Recognizes and values the unique diversity and individual differences among students.", SortOrder = 12 },
+                        new() { Description = "Assists students with their learning challenges during consultation hours.", SortOrder = 13 },
+                        new() { Description = "Provides immediate feedback on student outputs and performance.", SortOrder = 14 },
+                        new() { Description = "Provides transparent and clear criteria in rating student's performance.", SortOrder = 15 },
                     ]
                 },
             };

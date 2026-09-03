@@ -14,26 +14,29 @@ public class EvaluationResult
     public string FacultyId { get; set; } = "";
     public ApplicationUser Faculty { get; set; } = null!;
 
+    // SET Rating: (Total Score / 75) × 100, weighted by class size per CMO Section 8.3
     public double StudentRating { get; set; }
     public int StudentRespondents { get; set; }
 
+    // SEF Rating: (Total Score / 75) × 100
     public double SupervisorRating { get; set; }
     public int SupervisorRespondents { get; set; }
 
-    // Weighted: Student (60%) + Supervisor (40%) per CMO No. 19
-    public double OverallRating { get; set; }
+    [MaxLength(50)]
+    public string StudentDescriptiveRating { get; set; } = "";
 
     [MaxLength(50)]
-    public string DescriptiveRating { get; set; } = "";
+    public string SupervisorDescriptiveRating { get; set; } = "";
 
     public DateTime ComputedAt { get; set; } = DateTime.Now;
 
-    public static string GetDescriptiveRating(double rating) => rating switch
+    // Per CMO No. 19 ANNEX A/B Rating Scale operational definitions
+    public static string GetDescriptiveRating(double percentageRating) => percentageRating switch
     {
-        >= 4.5 => "Outstanding",
-        >= 3.5 => "Very Satisfactory",
-        >= 2.5 => "Satisfactory",
-        >= 1.5 => "Fair",
-        _ => "Poor"
+        >= 91 => "Always Manifested",
+        >= 61 => "Often Manifested",
+        >= 31 => "Sometimes Manifested",
+        >= 11 => "Seldom Manifested",
+        _ => "Never/Rarely Manifested"
     };
 }

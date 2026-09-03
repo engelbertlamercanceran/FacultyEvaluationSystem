@@ -14,8 +14,6 @@ public class EvaluationCategory
     [Required, MaxLength(20)]
     public string EvaluatorType { get; set; } = "Student"; // "Student" or "Supervisor"
 
-    public double Weight { get; set; } // percentage weight
-
     public List<EvaluationCriterion> Criteria { get; set; } = [];
 }
 

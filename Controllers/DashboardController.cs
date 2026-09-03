@@ -43,7 +43,7 @@ public class DashboardController : Controller
                 .ToListAsync()
             : [];
 
-        // College performance
+        // College performance (based on SET rating)
         var collegePerf = results
             .Where(r => r.Faculty.College is not null)
             .GroupBy(r => r.Faculty.College!)
@@ -51,7 +51,7 @@ public class DashboardController : Controller
             {
                 CollegeName = g.Key.Name,
                 CollegeCode = g.Key.Code,
-                AverageRating = Math.Round(g.Average(r => r.OverallRating), 2),
+                AverageRating = Math.Round(g.Average(r => r.StudentRating), 2),
                 FacultyCount = g.Count()
             })
             .OrderByDescending(c => c.AverageRating)
@@ -64,7 +64,7 @@ public class DashboardController : Controller
             .Select(g => new SemesterTrend
             {
                 Semester = g.Key.Term + ", " + g.Key.AcademicYear,
-                AverageRating = Math.Round(g.Average(r => r.OverallRating), 2),
+                AverageRating = Math.Round(g.Average(r => r.StudentRating), 2),
                 TotalEvaluations = g.Sum(r => r.StudentRespondents + r.SupervisorRespondents)
             })
             .ToListAsync();
@@ -80,8 +80,8 @@ public class DashboardController : Controller
             TotalEvaluations = await _db.Evaluations.CountAsync(),
             ActiveSemester = activeSemester,
             ActivePeriod = activePeriod,
-            TopPerformers = results.OrderByDescending(r => r.OverallRating).Take(5).ToList(),
-            LowPerformers = results.Where(r => r.OverallRating < 3.50).OrderBy(r => r.OverallRating).Take(5).ToList(),
+            TopPerformers = results.OrderByDescending(r => r.StudentRating).Take(5).ToList(),
+            LowPerformers = results.Where(r => r.StudentRating > 0 && r.StudentRating < 60).OrderBy(r => r.StudentRating).Take(5).ToList(),
             CollegePerformances = collegePerf,
             SemesterTrends = trends
         };
@@ -136,7 +136,7 @@ public class DashboardController : Controller
                     .Include(r => r.Faculty).ThenInclude(f => f.College)
                     .Where(r => r.EvaluationPeriodId == latestPeriod.Id && r.Faculty.College != null)
                     .GroupBy(r => r.Faculty.College!.Code)
-                    .Select(g => new { Label = g.Key, Avg = Math.Round(g.Average(r => r.OverallRating), 2) })
+                    .Select(g => new { Label = g.Key, Avg = Math.Round(g.Average(r => r.StudentRating), 2) })
                     .ToListAsync();
 
                 return Json(new { labels = collegeData.Select(c => c.Label), data = collegeData.Select(c => c.Avg) });
@@ -149,7 +149,7 @@ public class DashboardController : Controller
                 var trendData = allResults
                     .GroupBy(r => new { r.EvaluationPeriod.SemesterId, r.EvaluationPeriod.Semester.Term, r.EvaluationPeriod.Semester.AcademicYear })
                     .OrderBy(g => g.Key.AcademicYear).ThenBy(g => g.Key.Term)
-                    .Select(g => new { Label = g.Key.Term + " " + g.Key.AcademicYear, Avg = Math.Round(g.Average(r => r.OverallRating), 2) })
+                    .Select(g => new { Label = g.Key.Term + " " + g.Key.AcademicYear, Avg = Math.Round(g.Average(r => r.StudentRating), 2) })
                     .ToList();
 
                 return Json(new { labels = trendData.Select(t => t.Label), data = trendData.Select(t => t.Avg) });

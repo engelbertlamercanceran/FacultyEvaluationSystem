@@ -18,30 +18,25 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
                 <strong>@r.EvaluationPeriod.Semester.DisplayName</strong>
-                <span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-") ms-2">@r.DescriptiveRating</span>
+                <span class="badge bg-secondary ms-2">@r.StudentDescriptiveRating</span>
             </div>
             <div>
-                <span class="text-muted me-3">Overall: <strong>@r.OverallRating.ToString("F2")</strong></span>
+                <span class="text-muted me-3">SET: <strong>@r.StudentRating.ToString("F2")</strong></span>
+                <span class="text-muted">SEF: <strong>@r.SupervisorRating.ToString("F2")</strong></span>
             </div>
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-4">
-                    <div class="stat-card" style="border-left-color:#1a5632;">
-                        <p class="mb-1 small">Overall Rating</p>
-                        <h4>@r.OverallRating.ToString("F2")</h4>
-                    </div>
-                </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <div class="stat-card" style="border-left-color:#17a2b8;">
-                        <p class="mb-1 small">Student Rating (SET)</p>
+                        <p class="mb-1 small">SET Rating (Student)</p>
                         <h4>@r.StudentRating.ToString("F2")</h4>
                         <small class="text-muted">@r.StudentRespondents respondents</small>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <div class="stat-card" style="border-left-color:#f0b429;">
-                        <p class="mb-1 small">Supervisor Rating (SEF)</p>
+                        <p class="mb-1 small">SEF Rating (Supervisor)</p>
                         <h4>@r.SupervisorRating.ToString("F2")</h4>
                         <small class="text-muted">@r.SupervisorRespondents respondents</small>
                     </div>

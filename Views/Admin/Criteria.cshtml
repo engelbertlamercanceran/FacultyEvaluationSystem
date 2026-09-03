@@ -9,7 +9,7 @@
                 <form asp-action="CreateCategory" method="post">
                     <div class="mb-2">
                         <label class="form-label">Category Name</label>
-                        <input name="name" class="form-control form-control-sm" placeholder="e.g. Commitment" required />
+                        <input name="name" class="form-control form-control-sm" placeholder="e.g. Management of Teaching and Learning" required />
                     </div>
                     <div class="mb-2">
                         <label class="form-label">Evaluator Type</label>
@@ -18,15 +18,9 @@
                             <option value="Supervisor">Supervisor (SEF)</option>
                         </select>
                     </div>
-                    <div class="row mb-2">
-                        <div class="col">
-                            <label class="form-label">Weight (%)</label>
-                            <input name="weight" type="number" step="0.01" class="form-control form-control-sm" placeholder="e.g. 20" required />
-                        </div>
-                        <div class="col">
-                            <label class="form-label">Sort Order</label>
-                            <input name="sortOrder" type="number" class="form-control form-control-sm" value="1" required />
-                        </div>
+                    <div class="mb-2">
+                        <label class="form-label">Sort Order</label>
+                        <input name="sortOrder" type="number" class="form-control form-control-sm" value="1" required />
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm w-100">Add Category</button>
                 </form>
@@ -35,21 +29,12 @@
 
         <div class="card">
             <div class="card-body small">
-                <strong>Weight Guidelines</strong>
+                <strong>CMO No. 19 Guidelines</strong>
                 <ul class="mb-0 mt-1">
-                    <li>Student (SET) categories should total <strong>100%</strong></li>
-                    <li>Supervisor (SEF) categories should total <strong>100%</strong></li>
-                    <li>CHED CMO default: 5 student categories × 20%, 4 supervisor categories × 25%</li>
-                </ul>
-                <hr class="my-2"/>
-                <strong>Current Totals</strong>
-                @{
-                    var studentTotal = Model.Where(c => c.EvaluatorType == "Student").Sum(c => c.Weight);
-                    var supervisorTotal = Model.Where(c => c.EvaluatorType == "Supervisor").Sum(c => c.Weight);
-                }
-                <ul class="mb-0 mt-1">
-                    <li>Student: <strong class="@(studentTotal == 100 ? "text-success" : "text-danger")">@studentTotal%</strong></li>
-                    <li>Supervisor: <strong class="@(supervisorTotal == 100 ? "text-success" : "text-danger")">@supervisorTotal%</strong></li>
+                    <li>3 categories each for SET and SEF</li>
+                    <li>15 benchmark statements per instrument</li>
+                    <li>Rating: (Total Score / 75) &times; 100</li>
+                    <li>No category weighting — flat total score</li>
                 </ul>
             </div>
         </div>
@@ -59,7 +44,8 @@
         @foreach (var type in new[] { "Student", "Supervisor" })
         {
             var categories = Model.Where(c => c.EvaluatorType == type).ToList();
-            <h5 class="mt-2 mb-3">@(type == "Student" ? "Student Evaluation (SET)" : "Supervisor Evaluation (SEF)") — @categories.Count categories</h5>
+            var totalCriteria = categories.Sum(c => c.Criteria.Count);
+            <h5 class="mt-2 mb-3">@(type == "Student" ? "Student Evaluation of Teachers (SET)" : "Supervisor's Evaluation of Faculty (SEF)") — @categories.Count categories, @totalCriteria items</h5>
 
             @if (!categories.Any())
             {
@@ -72,8 +58,8 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span>
                             <strong>@cat.Name</strong>
-                            <span class="badge bg-secondary ms-2">@cat.Weight%</span>
                             <small class="text-muted ms-2">Order: @cat.SortOrder</small>
+                            <span class="badge bg-secondary ms-2">@cat.Criteria.Count items</span>
                         </span>
                         <div class="d-flex gap-1">
                             <button class="btn btn-outline-primary btn-sm" type="button"
@@ -91,20 +77,16 @@
                         <div class="card-body bg-light border-bottom">
                             <form asp-action="UpdateCategory" method="post" class="row g-2 align-items-end">
                                 <input type="hidden" name="id" value="@cat.Id" />
-                                <div class="col-md-4">
+                                <div class="col-md-5">
                                     <label class="form-label small">Name</label>
                                     <input name="name" value="@cat.Name" class="form-control form-control-sm" required />
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <label class="form-label small">Type</label>
                                     <select name="evaluatorType" class="form-select form-select-sm">
                                         <option value="Student" selected="@(cat.EvaluatorType == "Student")">Student</option>
                                         <option value="Supervisor" selected="@(cat.EvaluatorType == "Supervisor")">Supervisor</option>
                                     </select>
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label small">Weight (%)</label>
-                                    <input name="weight" type="number" step="0.01" value="@cat.Weight" class="form-control form-control-sm" required />
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label small">Order</label>

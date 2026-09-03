@@ -57,7 +57,7 @@
     </div>
     <div class="col-md-8">
         <div class="card h-100">
-            <div class="card-header">College Performance Comparison</div>
+            <div class="card-header">College Performance Comparison (SET Rating)</div>
             <div class="card-body">
                 <canvas id="collegeChart" height="200"></canvas>
             </div>
@@ -68,11 +68,11 @@
 <div class="row g-3 mb-4">
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">Top 5 Performers</div>
+            <div class="card-header">Top 5 Performers (SET)</div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
                     <thead>
-                        <tr><th>Faculty</th><th>College</th><th>Rating</th><th>Description</th></tr>
+                        <tr><th>Faculty</th><th>College</th><th>SET Rating</th><th>Description</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var r in Model.TopPerformers)
@@ -80,8 +80,8 @@
                             <tr>
                                 <td>@r.Faculty.FullName</td>
                                 <td>@(r.Faculty.College?.Code ?? "N/A")</td>
-                                <td><strong>@r.OverallRating.ToString("F2")</strong></td>
-                                <td><span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span></td>
+                                <td><strong>@r.StudentRating.ToString("F2")</strong></td>
+                                <td><span class="badge bg-secondary">@r.StudentDescriptiveRating</span></td>
                             </tr>
                         }
                         @if (!Model.TopPerformers.Any())
@@ -95,11 +95,11 @@
     </div>
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">Faculty Needing Support</div>
+            <div class="card-header">Faculty Needing Support (SET &lt; 60)</div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
                     <thead>
-                        <tr><th>Faculty</th><th>College</th><th>Rating</th><th>Description</th></tr>
+                        <tr><th>Faculty</th><th>College</th><th>SET Rating</th><th>Description</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var r in Model.LowPerformers)
@@ -107,8 +107,8 @@
                             <tr>
                                 <td>@r.Faculty.FullName</td>
                                 <td>@(r.Faculty.College?.Code ?? "N/A")</td>
-                                <td><strong>@r.OverallRating.ToString("F2")</strong></td>
-                                <td><span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span></td>
+                                <td><strong>@r.StudentRating.ToString("F2")</strong></td>
+                                <td><span class="badge bg-secondary">@r.StudentDescriptiveRating</span></td>
                             </tr>
                         }
                         @if (!Model.LowPerformers.Any())
@@ -125,7 +125,7 @@
 <div class="row g-3">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">Semester Trend</div>
+            <div class="card-header">Semester Trend (Average SET Rating)</div>
             <div class="card-body">
                 <canvas id="trendChart" height="100"></canvas>
             </div>
@@ -144,7 +144,7 @@
                 data: {
                     labels: d.labels,
                     datasets: [{
-                        label: 'Average Rating',
+                        label: 'Average SET Rating',
                         data: d.data,
                         backgroundColor: '#1a5632',
                         borderRadius: 4
@@ -152,7 +152,7 @@
                 },
                 options: {
                     responsive: true,
-                    scales: { y: { beginAtZero: true, max: 5 } },
+                    scales: { y: { beginAtZero: true, max: 100 } },
                     plugins: { legend: { display: false } }
                 }
             });
@@ -167,7 +167,7 @@
                 data: {
                     labels: d.labels,
                     datasets: [{
-                        label: 'Average Rating',
+                        label: 'Average SET Rating',
                         data: d.data,
                         borderColor: '#1a5632',
                         backgroundColor: 'rgba(26,86,50,0.1)',
@@ -177,7 +177,7 @@
                 },
                 options: {
                     responsive: true,
-                    scales: { y: { beginAtZero: true, max: 5 } }
+                    scales: { y: { beginAtZero: true, max: 100 } }
                 }
             });
         });

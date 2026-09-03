@@ -30,8 +30,8 @@
                 <thead>
                     <tr>
                         <th>Faculty Name</th>
-                        <th class="text-center">Overall</th>
-                        <th class="text-center">Description</th>
+                        <th class="text-center">SET Rating</th>
+                        <th class="text-center">SEF Rating</th>
                         @if (isProgramChair)
                         {
                             <th class="text-center">Faculty Input</th>
@@ -46,10 +46,8 @@
                         var plan = plans.GetValueOrDefault(r.FacultyId);
                         <tr>
                             <td>@r.Faculty.FullName</td>
-                            <td class="text-center"><strong>@r.OverallRating.ToString("F2")</strong></td>
-                            <td class="text-center">
-                                <span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span>
-                            </td>
+                            <td class="text-center"><strong>@r.StudentRating.ToString("F2")</strong></td>
+                            <td class="text-center"><strong>@r.SupervisorRating.ToString("F2")</strong></td>
                             @if (isProgramChair)
                             {
                                 <td class="text-center">

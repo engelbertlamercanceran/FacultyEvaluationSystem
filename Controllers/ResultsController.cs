@@ -26,7 +26,7 @@ public class ResultsController : Controller
                 .Include(r => r.Faculty).ThenInclude(f => f.College)
                 .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
                 .Where(r => r.EvaluationPeriodId == periodId.Value)
-                .OrderByDescending(r => r.OverallRating)
+                .OrderByDescending(r => r.StudentRating)
                 .ToListAsync()
             : [];
 

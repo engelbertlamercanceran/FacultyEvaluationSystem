@@ -106,7 +106,7 @@ public static class DocumentationService
                     var features = new[]
                     {
                         "Online Student and Supervisor Evaluation - Students and supervisors (Deans/Program Chairs) can submit evaluations through web-based forms with 5-point Likert scale ratings across multiple categories.",
-                        "Automated Computation of Performance Ratings - The system automatically computes weighted ratings: 60% Student Evaluation + 40% Supervisor Evaluation, following CHED CMO No. 19, Series of 2025.",
+                        "Automated Computation of Performance Ratings - The system computes SET and SEF ratings separately using the formula (Total Score / 75) x 100, with class-size weighting for SET, per CHED CMO No. 19, Series of 2025.",
                         "CHED-Compliant Report Generation - Generates Individual Faculty Evaluation Reports (IFER, Annex C), Faculty Evaluation and Development Acknowledgement Forms (FEDAF, Annex D), and Faculty Evaluation Summary Reports as downloadable PDFs per CHED CMO No. 19.",
                         "Analytics Dashboards - Interactive charts showing college performance comparisons, semester trends, category breakdowns, and top/low performing faculty.",
                         "Centralized Data Management - All evaluation records are stored in a centralized SQL Server database with historical tracking across semesters.",
@@ -285,10 +285,9 @@ public static class DocumentationService
                         table.ColumnsDefinition(c => { c.RelativeColumn(1); c.RelativeColumn(1); c.RelativeColumn(2); });
                         TableHeader(table, "Column", "Type", "Description");
                         TableRow(table, "Id", "int (PK)", "Auto-increment primary key");
-                        TableRow(table, "Name", "nvarchar(200)", "Category name (e.g., Commitment)");
+                        TableRow(table, "Name", "nvarchar(200)", "Category name (e.g., Management of Teaching and Learning)");
                         TableRow(table, "SortOrder", "int", "Display order");
                         TableRow(table, "EvaluatorType", "nvarchar(20)", "Student or Supervisor");
-                        TableRow(table, "Weight", "float", "Percentage weight (e.g., 20)");
                     });
 
                     SubSection(col, "EvaluationCriteria");
@@ -378,8 +377,8 @@ public static class DocumentationService
                         TableRow(table, "StudentRespondents", "int", "Number of student evaluators");
                         TableRow(table, "SupervisorRating", "float", "Average supervisor rating");
                         TableRow(table, "SupervisorRespondents", "int", "Number of supervisor evaluators");
-                        TableRow(table, "OverallRating", "float", "Weighted: 60% student + 40% supervisor");
-                        TableRow(table, "DescriptiveRating", "nvarchar(50)", "Outstanding/Very Satisfactory/etc.");
+                        TableRow(table, "StudentDescriptiveRating", "nvarchar(50)", "SET descriptive: Always/Often/Sometimes/Seldom/Never Manifested");
+                        TableRow(table, "SupervisorDescriptiveRating", "nvarchar(50)", "SEF descriptive: Always/Often/Sometimes/Seldom/Never Manifested");
                         TableRow(table, "ComputedAt", "datetime2", "When results were last computed");
                     });
                     Paragraph(col, "Unique constraint: One result per faculty per period.");
@@ -460,7 +459,7 @@ public static class DocumentationService
                     Paragraph(col, "From the Subject Assignments page, click 'Enrollments' for a subject. Select students from the dropdown and click 'Enroll'. Enrolled students will see this faculty-subject pair in their evaluation list when an evaluation period is open.");
 
                     SubSection(col, "6.7 Computing Results");
-                    Paragraph(col, "After evaluations are submitted, go to Evaluation Periods and click 'Compute' for the desired period. The system calculates weighted averages: Student Rating (60%) + Supervisor Rating (40%) = Overall Rating. Results are viewable in the Evaluation Results page.");
+                    Paragraph(col, "After evaluations are submitted, go to Evaluation Periods and click 'Compute' for the desired period. The system calculates SET and SEF ratings separately using (Total Score / 75) x 100, with class-size weighting for SET per CMO Section 8.3. Results are viewable in the Evaluation Results page.");
                 });
                 AddFooter(page);
             });
@@ -583,7 +582,7 @@ public static class DocumentationService
                     BulletPoint(col, "Step 1: Check that an evaluation period is currently open (shown in the blue info bar).");
                     BulletPoint(col, "Step 2: Find the faculty member you want to evaluate. Faculty with 'Pending' status have not been evaluated yet.");
                     BulletPoint(col, "Step 3: Click the 'Evaluate' button to open the evaluation form.");
-                    BulletPoint(col, "Step 4: Rate each criterion on a scale of 1 (Strongly Disagree) to 5 (Strongly Agree). All ratings are required.");
+                    BulletPoint(col, "Step 4: Rate each criterion on a scale of 1 (Never/Rarely Manifested) to 5 (Always Manifested). All ratings are required.");
                     BulletPoint(col, "Step 5: Optionally add comments in the text area at the bottom.");
                     BulletPoint(col, "Step 6: Click 'Submit Evaluation'. A confirmation dialog will appear. Once submitted, the evaluation cannot be changed.");
                     BulletPoint(col, "Step 7: The faculty member's status changes to 'Completed' in your list.");

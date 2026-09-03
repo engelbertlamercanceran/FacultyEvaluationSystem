@@ -2,30 +2,28 @@
 @{ ViewData["Title"] = "My Evaluation Dashboard"; }
 
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
+    <div class="col-md-6">
         <div class="stat-card">
-            <p class="mb-1">Overall Rating</p>
-            <h3>@(Model.LatestResult?.OverallRating.ToString("F2") ?? "N/A")</h3>
-            @if (Model.LatestResult is not null)
+            <p class="mb-1">SET Rating (Student)</p>
+            <h3>@(Model.LatestResult?.StudentRating.ToString("F2") ?? "N/A")</h3>
+            @if (Model.LatestResult is not null && !string.IsNullOrEmpty(Model.LatestResult.StudentDescriptiveRating))
             {
-                <span class="badge badge-@Model.LatestResult.DescriptiveRating.ToLower().Replace(" ", "-")">
-                    @Model.LatestResult.DescriptiveRating
+                <span class="badge bg-secondary">
+                    @Model.LatestResult.StudentDescriptiveRating
                 </span>
             }
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color:#17a2b8;">
-            <p class="mb-1">Student Rating</p>
-            <h3>@(Model.LatestResult?.StudentRating.ToString("F2") ?? "N/A")</h3>
-            <small class="text-muted">@(Model.LatestResult?.StudentRespondents ?? 0) respondents</small>
-        </div>
-    </div>
-    <div class="col-md-4">
+    <div class="col-md-6">
         <div class="stat-card" style="border-left-color:#f0b429;">
-            <p class="mb-1">Supervisor Rating</p>
+            <p class="mb-1">SEF Rating (Supervisor)</p>
             <h3>@(Model.LatestResult?.SupervisorRating.ToString("F2") ?? "N/A")</h3>
-            <small class="text-muted">@(Model.LatestResult?.SupervisorRespondents ?? 0) respondents</small>
+            @if (Model.LatestResult is not null && !string.IsNullOrEmpty(Model.LatestResult.SupervisorDescriptiveRating))
+            {
+                <span class="badge bg-secondary">
+                    @Model.LatestResult.SupervisorDescriptiveRating
+                </span>
+            }
         </div>
     </div>
 </div>
@@ -54,17 +52,17 @@
     <div class="card-body p-0">
         <table class="table table-hover mb-0">
             <thead>
-                <tr><th>Semester</th><th>Student</th><th>Supervisor</th><th>Overall</th><th>Description</th></tr>
+                <tr><th>Semester</th><th>SET Rating</th><th>SET Description</th><th>SEF Rating</th><th>SEF Description</th></tr>
             </thead>
             <tbody>
                 @foreach (var r in Model.History)
                 {
                     <tr>
                         <td>@r.EvaluationPeriod.Semester.DisplayName</td>
-                        <td>@r.StudentRating.ToString("F2")</td>
-                        <td>@r.SupervisorRating.ToString("F2")</td>
-                        <td><strong>@r.OverallRating.ToString("F2")</strong></td>
-                        <td><span class="badge badge-@r.DescriptiveRating.ToLower().Replace(" ", "-")">@r.DescriptiveRating</span></td>
+                        <td><strong>@r.StudentRating.ToString("F2")</strong></td>
+                        <td><span class="badge bg-secondary">@r.StudentDescriptiveRating</span></td>
+                        <td><strong>@r.SupervisorRating.ToString("F2")</strong></td>
+                        <td><span class="badge bg-secondary">@r.SupervisorDescriptiveRating</span></td>
                     </tr>
                 }
                 @if (!Model.History.Any())
@@ -87,7 +85,7 @@
             data: {
                 labels: categories,
                 datasets: [{
-                    label: 'Rating',
+                    label: 'Rating (1-5)',
                     data: ratings,
                     borderColor: '#1a5632',
                     backgroundColor: 'rgba(26,86,50,0.2)',
@@ -102,7 +100,7 @@
     }
 
     var historyLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.History.AsEnumerable().Reverse().Select(h => h.EvaluationPeriod.Semester.DisplayName).ToArray()));
-    var historyRatings = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.History.AsEnumerable().Reverse().Select(h => h.OverallRating).ToArray()));
+    var historyRatings = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.History.AsEnumerable().Reverse().Select(h => h.StudentRating).ToArray()));
 
     if (historyLabels.length > 0) {
         new Chart(document.getElementById('historyChart'), {
@@ -110,7 +108,7 @@
             data: {
                 labels: historyLabels,
                 datasets: [{
-                    label: 'Overall Rating',
+                    label: 'SET Rating',
                     data: historyRatings,
                     borderColor: '#1a5632',
                     backgroundColor: 'rgba(26,86,50,0.1)',
@@ -120,7 +118,7 @@
             },
             options: {
                 responsive: true,
-                scales: { y: { beginAtZero: true, max: 5 } }
+                scales: { y: { beginAtZero: true, max: 100 } }
             }
         });
     }

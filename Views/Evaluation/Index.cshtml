@@ -84,9 +84,10 @@ else
                     <h6 id="ratingFacultyName" class="mb-3"></h6>
                     <div class="card bg-light mb-3">
                         <div class="card-body text-center">
-                            <p class="mb-1 text-muted">Overall Rating</p>
+                            <p class="mb-1 text-muted">Computed Rating</p>
                             <h2 id="ratingOverall" style="color:#1a5632;">—</h2>
                             <span id="ratingDesc" class="badge"></span>
+                            <p class="text-muted small mt-1 mb-0">Formula: (Total Score / 75) &times; 100</p>
                         </div>
                     </div>
                     <div id="ratingBreakdown"></div>
@@ -108,11 +109,11 @@ else
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
                     document.getElementById('ratingFacultyName').textContent = data.facultyName;
-                    document.getElementById('ratingOverall').textContent = data.overall.toFixed(2);
+                    document.getElementById('ratingOverall').textContent = data.rating.toFixed(2) + '%';
 
                     var descEl = document.getElementById('ratingDesc');
                     descEl.textContent = data.description;
-                    descEl.className = 'badge badge-' + data.description.toLowerCase().replace(' ', '-');
+                    descEl.className = 'badge bg-success';
 
                     var html = '<table class="table table-sm mb-0"><thead><tr><th>Category</th><th class="text-center">Average</th></tr></thead><tbody>';
                     data.categories.forEach(function (c) {
