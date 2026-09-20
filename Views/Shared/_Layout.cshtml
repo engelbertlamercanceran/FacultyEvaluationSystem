@@ -100,28 +100,63 @@
                     <a class="nav-link" asp-controller="Admin" asp-action="Colleges">Colleges & Programs</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Criteria">Evaluation Criteria</a>
+                    <a class="nav-link" asp-controller="TeachingMemo" asp-action="Index">Teaching Memo</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Subject Assignments</a>
                     <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Batch Import</a>
                 }
 
+                @* AAS-01/02/03: AA Staff own the Teaching Memo, subject assignment
+                   and the stage-by-stage opening of the evaluation. *@
                 if (role == "AAStaff")
                 {
                     <div class="nav-section">Academic Affairs</div>
+                    <a class="nav-link" asp-controller="TeachingMemo" asp-action="Index">Teaching Memo</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Faculty Teaching Load</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Schedule</a>
                 }
 
+                @* AA-01/02 *@
+                if (role == "AA")
+                {
+                    <div class="nav-section">Academic Affairs</div>
+                    <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Program Chairs</a>
+                    <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
+                    <a class="nav-link" asp-controller="Reports" asp-action="RawDataIndex">Raw Evaluation Data</a>
+                    <a class="nav-link" asp-controller="QualityAssurance" asp-action="CollegeSummary">Summary per College</a>
+                }
+
+                @* PC-01 / DN-01 *@
                 if (role is "Dean" or "ProgramChair")
                 {
                     <div class="nav-section">Evaluation</div>
-                    <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Faculty</a>
+                    <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">
+                        @(role == "Dean" ? "Evaluate Program Chairs" : "Evaluate Faculty")
+                    </a>
                     <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
                 }
 
+                @* A Program Chair is also evaluated, so they need their own FEDAF (FC-02) *@
+                if (role == "ProgramChair")
+                {
+                    <div class="nav-section">My Records</div>
+                    <a class="nav-link" asp-controller="Dashboard" asp-action="Faculty">My Dashboard</a>
+                    <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Index">My Reports & FEDAF</a>
+                }
+
+                @* QA-01 / QA-02 *@
                 if (role is "QA")
                 {
                     <div class="nav-section">Quality Assurance</div>
-                    <a class="nav-link" asp-controller="Results" asp-action="Index">Evaluation Summary</a>
+                    <a class="nav-link" asp-controller="QualityAssurance" asp-action="CollegeSummary">Summary per College</a>
+                    <a class="nav-link" asp-controller="QualityAssurance" asp-action="Feedback">Feedback & Comments</a>
+                    <a class="nav-link" asp-controller="Results" asp-action="Index">All Results</a>
+                }
+
+                if (role is "Admin" or "CEO")
+                {
+                    <div class="nav-section">Quality Assurance</div>
+                    <a class="nav-link" asp-controller="QualityAssurance" asp-action="CollegeSummary">Summary per College</a>
+                    <a class="nav-link" asp-controller="QualityAssurance" asp-action="Feedback">Feedback & Comments</a>
                 }
             }
             else if (role == "Faculty")

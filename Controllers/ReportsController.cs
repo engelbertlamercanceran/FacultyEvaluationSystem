@@ -403,6 +403,124 @@ public class ReportsController : Controller
         return PdfResult(bytes, $"FEDAF_{result.Faculty.LastName}_{result.EvaluationPeriod.Semester.AcademicYear}.pdf", preview);
     }
 
+    /// <summary>
+    /// AA-02: generate and download the raw evaluation data held for one faculty
+    /// member, taken from the stored system records.
+    ///
+    /// Evaluations are anonymous, so the export identifies the faculty member, the
+    /// subject and the section, but never the individual who submitted a response.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "AA,Admin")]
+    public async Task<IActionResult> RawData(int periodId, string facultyId)
+    {
+        var faculty = await _userManager.FindByIdAsync(facultyId);
+        var period = await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .FirstOrDefaultAsync(p => p.Id == periodId);
+
+        if (faculty is null || period is null) return NotFound();
+
+        var evaluations = await _db.Evaluations
+            .Include(e => e.FacultySubject)
+            .Include(e => e.Responses).ThenInclude(r => r.Criterion).ThenInclude(c => c.Category)
+            .Where(e => e.EvaluationPeriodId == periodId && e.FacultyId == facultyId)
+            .OrderBy(e => e.EvaluatorType).ThenBy(e => e.SubmittedAt)
+            .ToListAsync();
+
+        var csv = new System.Text.StringBuilder();
+
+        csv.AppendLine($"Raw Evaluation Data");
+        csv.AppendLine($"Faculty,{Csv(faculty.FullName)}");
+        csv.AppendLine($"Employee Number,{Csv(faculty.EmployeeNumber ?? "")}");
+        csv.AppendLine($"Evaluation Period,{Csv(period.Name)}");
+        csv.AppendLine($"Semester,{Csv(period.Semester.DisplayName)}");
+        csv.AppendLine($"Generated,{Csv(DateTime.Now.ToString("yyyy-MM-dd HH:mm"))}");
+        csv.AppendLine("Note,Responses are anonymous. Individual evaluators are not identified.");
+        csv.AppendLine();
+
+        csv.AppendLine("ResponseNo,EvaluatorType,SubjectCode,Section,SubmittedOn,Category,Item,Rating");
+
+        int n = 0;
+        foreach (var e in evaluations)
+        {
+            n++;
+            foreach (var r in e.Responses.OrderBy(x => x.Criterion.SortOrder))
+            {
+                csv.AppendLine(string.Join(",",
+                    n,
+                    Csv(e.EvaluatorType),
+                    Csv(e.FacultySubject?.SubjectCode ?? ""),
+                    Csv(e.FacultySubject?.Section ?? ""),
+                    Csv(e.SubmittedAt.ToString("yyyy-MM-dd")),
+                    Csv(r.Criterion.Category.Name),
+                    Csv(r.Criterion.Description),
+                    r.Rating));
+            }
+        }
+
+        csv.AppendLine();
+        csv.AppendLine("ResponseNo,EvaluatorType,SubjectCode,Section,SubmittedOn,TotalScore,Rating,Comment");
+
+        n = 0;
+        foreach (var e in evaluations)
+        {
+            n++;
+            var total = e.Responses.Sum(r => r.Rating);
+            var rating = (total / 75.0) * 100;
+            csv.AppendLine(string.Join(",",
+                n,
+                Csv(e.EvaluatorType),
+                Csv(e.FacultySubject?.SubjectCode ?? ""),
+                Csv(e.FacultySubject?.Section ?? ""),
+                Csv(e.SubmittedAt.ToString("yyyy-MM-dd")),
+                total,
+                Math.Round(rating, 2),
+                Csv(e.Comments ?? "")));
+        }
+
+        var fileName = $"RawData_{faculty.LastName}_{period.Semester.AcademicYear}_{period.Semester.Term}.csv"
+            .Replace(" ", "_");
+
+        return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", fileName);
+    }
+
+    /// <summary>AA-02: pick a faculty member to export raw data for.</summary>
+    [HttpGet]
+    [Authorize(Roles = "AA,Admin")]
+    public async Task<IActionResult> RawDataIndex(int? periodId)
+    {
+        var periods = await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id)
+            .ToListAsync();
+
+        ViewBag.Periods = periods;
+        periodId ??= periods.FirstOrDefault()?.Id;
+        ViewBag.SelectedPeriodId = periodId;
+
+        var faculty = periodId.HasValue
+            ? await _db.Evaluations
+                .Include(e => e.Faculty).ThenInclude(f => f.College)
+                .Include(e => e.Faculty).ThenInclude(f => f.Program)
+                .Where(e => e.EvaluationPeriodId == periodId.Value)
+                .Select(e => e.Faculty)
+                .Distinct()
+                .OrderBy(f => f.LastName)
+                .ToListAsync()
+            : [];
+
+        return View(faculty);
+    }
+
+    private static string Csv(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        var needsQuotes = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
+        var escaped = value.Replace("\"", "\"\"").Replace("\r", " ").Replace("\n", " ");
+        return needsQuotes ? $"\"{escaped}\"" : escaped;
+    }
+
     // Generate summary report for all faculty in a period
     [HttpGet]
     [Authorize(Roles = "Admin,CEO,AA,Dean,ProgramChair,QA")]

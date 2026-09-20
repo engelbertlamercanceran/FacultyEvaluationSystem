@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,12 +15,15 @@ public class EvaluationController : Controller
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly EvaluationService _evalService;
+    private readonly EvaluatorAssignmentService _assignments;
 
-    public EvaluationController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService)
+    public EvaluationController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
+        EvaluationService evalService, EvaluatorAssignmentService assignments)
     {
         _db = db;
         _userManager = userManager;
         _evalService = evalService;
+        _assignments = assignments;
     }
 
     // Student: list faculty to evaluate
@@ -265,14 +268,7 @@ public class EvaluationController : Controller
             return;
         }
 
-        var assignments = await _db.FacultySubjects
-            .Include(fs => fs.Faculty).ThenInclude(f => f.College)
-            .Include(fs => fs.Faculty).ThenInclude(f => f.Program)
-            .Where(fs => fs.SemesterId == period.SemesterId
-                      && fs.ProgramId == chair.ProgramId
-                      && fs.Faculty.IsActive
-                      && fs.FacultyId != chair.Id)
-            .ToListAsync();
+        var assignments = await _assignments.GetProgramTeachingAssignmentsAsync(chair, period.SemesterId);
 
         var program = await _db.AcademicPrograms
             .Include(p => p.College)
@@ -319,9 +315,7 @@ public class EvaluationController : Controller
         EvaluationListViewModel model, ApplicationUser dean,
         EvaluationPeriod period, List<Evaluation> existingEvals)
     {
-        var chairs = (await GetProgramChairsAsync())
-            .Where(u => u.CollegeId == dean.CollegeId && u.Id != dean.Id)
-            .ToList();
+        var chairs = await _assignments.GetChairsForDeanAsync(dean);
 
         model.RosterDescription = "Program Chairs under your college, organised per program.";
         model.Groups = chairs
@@ -345,9 +339,7 @@ public class EvaluationController : Controller
     private async Task BuildAaRosterAsync(
         EvaluationListViewModel model, EvaluationPeriod period, List<Evaluation> existingEvals)
     {
-        var chairs = (await GetProgramChairsAsync())
-            .Where(u => u.DesignatedEvaluatorId is null)
-            .ToList();
+        var chairs = await _assignments.GetChairsWithoutEvaluatorAsync();
 
         model.RosterDescription = "Program Chairs with no designated evaluator, organised per college.";
         model.Groups = chairs
@@ -364,20 +356,6 @@ public class EvaluationController : Controller
         if (model.Groups.Count == 0)
             model.StageMessage = "Every Program Chair has a designated evaluator, so there is "
                                + "nothing for the AA account to evaluate this period.";
-    }
-
-    /// <summary>Active Program Chairs with their College/Program navigations loaded.</summary>
-    private async Task<List<ApplicationUser>> GetProgramChairsAsync()
-    {
-        var chairs = await _userManager.GetUsersInRoleAsync("ProgramChair");
-        var ids = chairs.Where(c => c.IsActive).Select(c => c.Id).ToList();
-
-        // Re-read through the context so College/Program navigations are populated
-        return await _db.Users
-            .Include(u => u.College)
-            .Include(u => u.Program)
-            .Where(u => ids.Contains(u.Id))
-            .ToListAsync();
     }
 
     private static FacultyToEvaluateViewModel ToRosterEntry(

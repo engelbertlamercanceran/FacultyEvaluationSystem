@@ -1,0 +1,71 @@
+@using FacultyEvalSystem.Models
+@model List<ApplicationUser>
+@{
+    ViewData["Title"] = "Raw Evaluation Data";
+    var periods = ViewBag.Periods as List<EvaluationPeriod> ?? [];
+    var selPeriod = ViewBag.SelectedPeriodId as int?;
+}
+
+<div class="alert alert-light border small py-2">
+    The export contains every individual rating and comment recorded for the faculty member
+    in the selected period. Evaluations are anonymous &mdash; the file identifies the faculty
+    member, subject and section, but never the person who submitted a response.
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-3">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small text-muted mb-1">Evaluation Period</label>
+                <select name="periodId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var p in periods)
+                    {
+                        <option value="@p.Id" selected="@(selPeriod == p.Id)">@p.DisplayName</option>
+                    }
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Faculty with Evaluation Records</span>
+        <small class="text-muted">@Model.Count</small>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.Count == 0)
+        {
+            <p class="text-center text-muted py-4 mb-0">No evaluations recorded for this period.</p>
+        }
+        else
+        {
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>Faculty</th>
+                        <th>Employee No.</th>
+                        <th>College</th>
+                        <th>Program</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model)
+                    {
+                        <tr>
+                            <td>@f.FullName</td>
+                            <td><small class="text-muted">@(f.EmployeeNumber ?? "—")</small></td>
+                            <td><small>@(f.College?.Code ?? "—")</small></td>
+                            <td><small>@(f.Program?.Code ?? "—")</small></td>
+                            <td class="text-end">
+                                <a asp-action="RawData" asp-route-periodId="@selPeriod" asp-route-facultyId="@f.Id"
+                                   class="btn btn-outline-primary btn-sm">Download Raw Data (CSV)</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

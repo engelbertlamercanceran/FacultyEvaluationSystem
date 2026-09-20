@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Data;
 using FacultyEvalSystem.Models;
+using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
@@ -12,11 +13,14 @@ public class DevelopmentPlanController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly EvaluatorAssignmentService _assignments;
 
-    public DevelopmentPlanController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    public DevelopmentPlanController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
+        EvaluatorAssignmentService assignments)
     {
         _db = db;
         _userManager = userManager;
+        _assignments = assignments;
     }
 
     // Faculty: own results, IFER/FEDAF and the Development Plan (read-only, FC-01).
@@ -233,40 +237,12 @@ public class DevelopmentPlanController : Controller
     }
 
     /// <summary>
-    /// Who this supervisor is responsible for, matching the evaluation rosters:
-    /// PC-01 Program Chair -> faculty teaching courses owned by their program;
-    /// DN-01 Dean          -> Program Chairs in their college;
-    /// AA-01 AA            -> Program Chairs with no designated evaluator.
+    /// Who this supervisor is responsible for. Delegates to the same service the
+    /// evaluation rosters use, so the two screens can never disagree.
     /// </summary>
-    private async Task<List<string>> GetSupervisedFacultyIdsAsync(
+    private Task<List<string>> GetSupervisedFacultyIdsAsync(
         ApplicationUser user, IList<string> roles, int periodId)
-    {
-        if (roles.Contains("ProgramChair"))
-        {
-            var period = await _db.EvaluationPeriods.FindAsync(periodId);
-            if (period is null || user.ProgramId is null) return [];
-
-            return await _db.FacultySubjects
-                .Where(fs => fs.SemesterId == period.SemesterId
-                          && fs.ProgramId == user.ProgramId
-                          && fs.FacultyId != user.Id)
-                .Select(fs => fs.FacultyId)
-                .Distinct()
-                .ToListAsync();
-        }
-
-        var chairs = await _userManager.GetUsersInRoleAsync("ProgramChair");
-
-        if (roles.Contains("Dean"))
-            return chairs.Where(c => c.IsActive && c.CollegeId == user.CollegeId && c.Id != user.Id)
-                         .Select(c => c.Id).ToList();
-
-        if (roles.Contains("AA"))
-            return chairs.Where(c => c.IsActive && c.DesignatedEvaluatorId is null)
-                         .Select(c => c.Id).ToList();
-
-        return [];
-    }
+        => _assignments.GetSupervisedIdsAsync(user, roles, periodId);
 
     private async Task<bool> CanSuperviseAsync(
         ApplicationUser user, IList<string> roles, string facultyId, int periodId)

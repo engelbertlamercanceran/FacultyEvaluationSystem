@@ -23,6 +23,24 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // SUP-02: assignments created before the Teaching Memo carried a program code
+        // have no owning program, which would leave them invisible to every Program
+        // Chair (PC-01). Fall back to the teaching faculty's own program so existing
+        // data stays usable. The Teaching Memo sets this properly going forward, and
+        // AA Staff can correct any row on the Teaching Memo screen.
+        var unassigned = await context.FacultySubjects
+            .Include(fs => fs.Faculty)
+            .Where(fs => fs.ProgramId == null && fs.Faculty.ProgramId != null)
+            .ToListAsync();
+
+        if (unassigned.Count > 0)
+        {
+            foreach (var assignment in unassigned)
+                assignment.ProgramId = assignment.Faculty.ProgramId;
+
+            await context.SaveChangesAsync();
+        }
+
         // Seed roles
         string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student", "AA", "AAStaff", "QA"];
         foreach (var role in roles)

@@ -33,6 +33,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 // Services
 builder.Services.AddScoped<EvaluationService>();
+builder.Services.AddScoped<EvaluatorAssignmentService>();
 
 builder.Services.AddControllersWithViews();
 

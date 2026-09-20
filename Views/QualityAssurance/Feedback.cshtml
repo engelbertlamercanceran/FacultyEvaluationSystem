@@ -1,0 +1,139 @@
+@using FacultyEvalSystem.Models
+@using FacultyEvalSystem.Controllers
+@model List<QualityAssuranceController.FeedbackEntry>
+@{
+    ViewData["Title"] = "Evaluation Feedback";
+    var periods = ViewBag.Periods as List<EvaluationPeriod> ?? [];
+    var colleges = ViewBag.Colleges as List<College> ?? [];
+    var selPeriod = ViewBag.SelectedPeriodId as int?;
+    var selCollege = ViewBag.SelectedCollegeId as int?;
+    var selType = ViewBag.SelectedEvaluatorType as string;
+    var search = ViewBag.Search as string;
+    var total = ViewBag.TotalWithComments as int? ?? 0;
+}
+
+<div class="alert alert-light border small py-2">
+    Evaluations are anonymous. Comments are shown against the faculty member and subject
+    they concern &mdash; never against the person who wrote them.
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-3">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Evaluation Period</label>
+                <select name="periodId" class="form-select form-select-sm">
+                    <option value="">All periods</option>
+                    @foreach (var p in periods)
+                    {
+                        <option value="@p.Id" selected="@(selPeriod == p.Id)">@p.DisplayName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">College</label>
+                <select name="collegeId" class="form-select form-select-sm">
+                    <option value="">All colleges</option>
+                    @foreach (var c in colleges)
+                    {
+                        <option value="@c.Id" selected="@(selCollege == c.Id)">@c.Code &mdash; @c.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">From</label>
+                <select name="evaluatorType" class="form-select form-select-sm">
+                    <option value="">Everyone</option>
+                    <option value="Student" selected="@(selType == "Student")">Students</option>
+                    <option value="Supervisor" selected="@(selType == "Supervisor")">Supervisors</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Search text</label>
+                <input name="search" value="@search" class="form-control form-control-sm" placeholder="keyword or name" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+                <a asp-action="Feedback" class="btn btn-outline-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Feedback, Comments and Suggestions</span>
+        <small class="text-muted">
+            @if (total > Model.Count)
+            {
+                <text>showing @Model.Count of @total</text>
+            }
+            else
+            {
+                <text>@total total</text>
+            }
+        </small>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.Count == 0)
+        {
+            <p class="text-center text-muted py-4 mb-0">No written feedback matches these filters.</p>
+        }
+        else
+        {
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:22%;">Faculty</th>
+                        <th style="width:14%;">Subject</th>
+                        <th style="width:10%;">From</th>
+                        <th>Comment</th>
+                        <th style="width:14%;">Period</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model)
+                    {
+                        <tr>
+                            <td>
+                                <small>
+                                    <strong>@f.FacultyName</strong><br />
+                                    <span class="text-muted">@(f.ProgramCode ?? f.CollegeCode ?? "—")</span>
+                                </small>
+                            </td>
+                            <td>
+                                <small>
+                                    @if (f.SubjectCode is not null)
+                                    {
+                                        @f.SubjectCode
+                                        @if (!string.IsNullOrEmpty(f.Section))
+                                        {
+                                            <br />
+
+                                            <span class="text-muted">@f.Section</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">&mdash;</span>
+                                    }
+                                </small>
+                            </td>
+                            <td>
+                                <span class="badge @(f.EvaluatorType == "Student" ? "bg-info text-dark" : "bg-secondary")">
+                                    @f.EvaluatorType
+                                </span>
+                            </td>
+                            <td><small>@f.Comment</small></td>
+                            <td>
+                                <small class="text-muted">
+                                    @f.Semester<br />@f.PeriodName
+                                </small>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

@@ -1,4 +1,4 @@
-@model FacultyEvalSystem.ViewModels.AdminDashboardViewModel
+﻿@model FacultyEvalSystem.ViewModels.AdminDashboardViewModel
 @{ ViewData["Title"] = "Dashboard"; }
 
 <div class="row g-3 mb-4">
@@ -38,7 +38,8 @@
                     <h5>@Model.ActiveSemester.DisplayName</h5>
                     @if (Model.ActivePeriod is not null)
                     {
-                        <span class="badge bg-success">Evaluation Open</span>
+                        @* AAS-03: show which stage the evaluation is at *@
+                        <span class="badge bg-success">@Model.ActivePeriod.StageName</span>
                         <p class="mt-2 mb-0 text-muted" style="font-size:13px;">
                             @Model.ActivePeriod.StartDate.ToString("MMM dd") - @Model.ActivePeriod.EndDate.ToString("MMM dd, yyyy")
                         </p>
@@ -122,12 +123,139 @@
     </div>
 </div>
 
-<div class="row g-3">
+@* DA-01: comparative analysis and historical data, five most recent semesters *@
+<div class="row g-3 mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">Semester Trend (Average SET Rating)</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Semester Trend (Average SET Rating)</span>
+                <small class="text-muted">Five most recent semesters</small>
+            </div>
             <div class="card-body">
-                <canvas id="trendChart" height="100"></canvas>
+                <canvas id="trendChart" height="90"></canvas>
+                @if (Model.SemesterTrends.Any())
+                {
+                    <table class="table table-sm mt-3 mb-0">
+                        <thead>
+                            <tr>
+                                <th>Semester</th>
+                                <th class="text-center">Average SET</th>
+                                <th class="text-center">Change</th>
+                                <th class="text-center">Responses</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in Model.SemesterTrends)
+                            {
+                                <tr>
+                                    <td><small>@t.Semester</small></td>
+                                    <td class="text-center"><strong>@t.AverageRating.ToString("F2")</strong></td>
+                                    <td class="text-center">
+                                        @if (t.ChangeFromPrevious is null)
+                                        {
+                                            <small class="text-muted">&mdash;</small>
+                                        }
+                                        else if (t.ChangeFromPrevious > 0)
+                                        {
+                                            <small class="text-success">+@t.ChangeFromPrevious.Value.ToString("F2")</small>
+                                        }
+                                        else if (t.ChangeFromPrevious < 0)
+                                        {
+                                            <small class="text-danger">@t.ChangeFromPrevious.Value.ToString("F2")</small>
+                                        }
+                                        else
+                                        {
+                                            <small class="text-muted">0.00</small>
+                                        }
+                                    </td>
+                                    <td class="text-center"><small>@t.TotalEvaluations</small></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>College Comparison Over Time</span>
+                <small class="text-muted">SET rating per semester</small>
+            </div>
+            <div class="card-body">
+                <canvas id="comparativeChart" height="130"></canvas>
+                @if (Model.Comparative.CollegeSeries.Any())
+                {
+                    <div class="mt-3 small">
+                        @foreach (var cs in Model.Comparative.CollegeSeries)
+                        {
+                            <span class="me-3">
+                                <strong>@cs.Name</strong>
+                                @if (cs.Latest is not null)
+                                {
+                                    <span class="text-muted">@cs.Latest.Value.ToString("F2")</span>
+                                }
+                                @if (cs.Change is not null)
+                                {
+                                    <span class="@(cs.Change > 0 ? "text-success" : cs.Change < 0 ? "text-danger" : "text-muted")">
+                                        (@(cs.Change > 0 ? "+" : "")@cs.Change.Value.ToString("F2") over period)
+                                    </span>
+                                }
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Program vs College Average</span>
+                <small class="text-muted">Latest semester</small>
+            </div>
+            <div class="card-body p-0">
+                @if (!Model.Comparative.ProgramComparisons.Any())
+                {
+                    <p class="text-center text-muted py-4 mb-0">Not enough data yet.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Program</th>
+                                <th class="text-center">Program</th>
+                                <th class="text-center">College</th>
+                                <th class="text-center">Diff.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pc in Model.Comparative.ProgramComparisons)
+                            {
+                                <tr>
+                                    <td>
+                                        <small>
+                                            <strong>@pc.ProgramCode</strong>
+                                            <span class="text-muted">(@pc.CollegeCode)</span>
+                                        </small>
+                                    </td>
+                                    <td class="text-center"><small>@pc.ProgramAverage.ToString("F2")</small></td>
+                                    <td class="text-center"><small class="text-muted">@pc.CollegeAverage.ToString("F2")</small></td>
+                                    <td class="text-center">
+                                        <small class="@(pc.Difference > 0 ? "text-success" : pc.Difference < 0 ? "text-danger" : "text-muted")">
+                                            @(pc.Difference > 0 ? "+" : "")@pc.Difference.ToString("F2")
+                                        </small>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             </div>
         </div>
     </div>
@@ -154,6 +282,43 @@
                     responsive: true,
                     scales: { y: { beginAtZero: true, max: 100 } },
                     plugins: { legend: { display: false } }
+                }
+            });
+        });
+
+    // DA-01: comparative chart, one line per college across five semesters
+    fetch('/Dashboard/ChartData?type=comparative')
+        .then(r => r.json())
+        .then(d => {
+            var palette = ['#1a5632', '#f0b429', '#17a2b8', '#a0522d', '#6f42c1', '#dc3545'];
+            var datasets = (d.series || []).map(function (s, i) {
+                return {
+                    label: s.name,
+                    data: s.values,
+                    borderColor: palette[i % palette.length],
+                    backgroundColor: 'transparent',
+                    tension: 0.3,
+                    spanGaps: true
+                };
+            });
+            datasets.push({
+                label: 'Institution average',
+                data: d.institution,
+                borderColor: '#6c757d',
+                borderDash: [6, 4],
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                spanGaps: true
+            });
+
+            new Chart(document.getElementById('comparativeChart'), {
+                type: 'line',
+                data: { labels: d.labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: { y: { beginAtZero: true, max: 100 } },
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
                 }
             });
         });
