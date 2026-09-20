@@ -284,7 +284,6 @@ public class BatchImportController : Controller
         TempData["Success"] = $"Enrollments imported: {created} created, {skipped} skipped.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost]
     public async Task<IActionResult> QuickDemoSetup([FromServices] IWebHostEnvironment env)
     {
@@ -299,15 +298,14 @@ public class BatchImportController : Controller
         var samplesPath = Path.Combine(env.WebRootPath, "samples");
         var log = new List<string>();
 
-        // === 1. Import Colleges & Programs ===
+        // === 1. Colleges & Programs ===
         var collegeLines = await ReadCsvFile(Path.Combine(samplesPath, "colleges_programs.csv"));
-        int collegesCreated = 0;
         foreach (var fields in collegeLines.Skip(1))
         {
             if (fields.Length < 2) continue;
             var collegeName = fields[0].Trim();
             var collegeCode = fields[1].Trim();
-            if (string.IsNullOrEmpty(collegeName) || string.IsNullOrEmpty(collegeCode)) continue;
+            if (string.IsNullOrWhiteSpace(collegeCode)) continue;
 
             var college = await _db.Colleges.FirstOrDefaultAsync(c => c.Code == collegeCode);
             if (college is null)
@@ -315,257 +313,219 @@ public class BatchImportController : Controller
                 college = new College { Name = collegeName, Code = collegeCode };
                 _db.Colleges.Add(college);
                 await _db.SaveChangesAsync();
-                collegesCreated++;
             }
 
-            if (fields.Length >= 4)
+            if (fields.Length >= 4 && !string.IsNullOrWhiteSpace(fields[3]))
             {
-                var progName = fields[2].Trim();
-                var progCode = fields[3].Trim();
-                if (!string.IsNullOrEmpty(progName) && !string.IsNullOrEmpty(progCode))
+                var programCode = fields[3].Trim();
+                if (!await _db.AcademicPrograms.AnyAsync(p => p.Code == programCode))
                 {
-                    if (!await _db.AcademicPrograms.AnyAsync(p => p.Code == progCode))
+                    _db.AcademicPrograms.Add(new AcademicProgram
                     {
-                        _db.AcademicPrograms.Add(new AcademicProgram { Name = progName, Code = progCode, CollegeId = college.Id });
-                        await _db.SaveChangesAsync();
-                    }
+                        Name = fields[2].Trim(),
+                        Code = programCode,
+                        CollegeId = college.Id
+                    });
                 }
             }
         }
-        log.Add($"Colleges & programs created");
+        await _db.SaveChangesAsync();
+        log.Add($"{await _db.Colleges.CountAsync()} colleges, {await _db.AcademicPrograms.CountAsync()} programs");
 
-        // === 2. Import Users ===
+        // === 2. Users ===
         var userLines = await ReadCsvFile(Path.Combine(samplesPath, "users.csv"));
         int usersCreated = 0;
         foreach (var fields in userLines.Skip(1))
         {
             if (fields.Length < 5) continue;
             var email = fields[0].Trim();
-            var firstName = fields[1].Trim();
-            var lastName = fields[2].Trim();
+            if (string.IsNullOrWhiteSpace(email)) continue;
+            if (await _userManager.FindByEmailAsync(email) is not null) continue;
+
             var role = fields[3].Trim();
-            var password = fields[4].Trim();
-            var empNumber = fields.Length > 5 ? fields[5].Trim() : null;
-            var stuNumber = fields.Length > 6 ? fields[6].Trim() : null;
-            var collegeCode = fields.Length > 7 ? fields[7].Trim() : null;
-            var programCode = fields.Length > 8 ? fields[8].Trim() : null;
+            var collegeCode = fields.Length > 7 ? fields[7].Trim() : "";
+            var programCode = fields.Length > 8 ? fields[8].Trim() : "";
 
-            if (string.IsNullOrEmpty(email) || await _userManager.FindByEmailAsync(email) is not null) continue;
-
-            int? collegeId = null, programId = null;
-            if (!string.IsNullOrEmpty(collegeCode))
-                collegeId = (await _db.Colleges.FirstOrDefaultAsync(c => c.Code == collegeCode))?.Id;
-            if (!string.IsNullOrEmpty(programCode))
-                programId = (await _db.AcademicPrograms.FirstOrDefaultAsync(p => p.Code == programCode))?.Id;
+            var college = string.IsNullOrWhiteSpace(collegeCode) ? null
+                : await _db.Colleges.FirstOrDefaultAsync(c => c.Code == collegeCode);
+            var program = string.IsNullOrWhiteSpace(programCode) ? null
+                : await _db.AcademicPrograms.FirstOrDefaultAsync(p => p.Code == programCode);
 
             var user = new ApplicationUser
             {
-                UserName = email, Email = email, FirstName = firstName, LastName = lastName,
-                EmployeeNumber = string.IsNullOrEmpty(empNumber) ? null : empNumber,
-                StudentNumber = string.IsNullOrEmpty(stuNumber) ? null : stuNumber,
-                CollegeId = collegeId, ProgramId = programId, EmailConfirmed = true
+                UserName = email,
+                Email = email,
+                FirstName = fields[1].Trim(),
+                LastName = fields[2].Trim(),
+                EmployeeNumber = string.IsNullOrWhiteSpace(fields[5]) ? null : fields[5].Trim(),
+                StudentNumber = fields.Length > 6 && !string.IsNullOrWhiteSpace(fields[6]) ? fields[6].Trim() : null,
+                CollegeId = college?.Id,
+                ProgramId = program?.Id,
+                EmailConfirmed = true,
+                IsActive = true
             };
-            var result = string.IsNullOrEmpty(password)
-                ? await _userManager.CreateAsync(user)
-                : await _userManager.CreateAsync(user, password);
-            if (result.Succeeded)
-            {
-                string[] validRoles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student", "AA", "AAStaff", "QA"];
-                await _userManager.AddToRoleAsync(user, validRoles.Contains(role) ? role : "Student");
-                usersCreated++;
-            }
+
+            var result = await _userManager.CreateAsync(user, fields[4].Trim());
+            if (!result.Succeeded) continue;
+
+            await _userManager.AddToRoleAsync(user, role);
+            usersCreated++;
         }
         log.Add($"{usersCreated} users created");
 
-        // === 3. Create 3 Semesters ===
+        // === 3. Five semesters, so the dashboard's five-semester history (DA-01) is exercised ===
         if (!_db.Semesters.Any())
         {
-            _db.Semesters.AddRange(
-                new Semester { AcademicYear = "2024-2025", Term = "1st Semester", IsActive = false, SortKey = Semester.ComputeSortKey("2024-2025", "1st Semester") },
-                new Semester { AcademicYear = "2024-2025", Term = "2nd Semester", IsActive = false, SortKey = Semester.ComputeSortKey("2024-2025", "2nd Semester") },
-                new Semester { AcademicYear = "2025-2026", Term = "1st Semester", IsActive = true, SortKey = Semester.ComputeSortKey("2025-2026", "1st Semester") }
-            );
+            var terms = new[]
+            {
+                ("2023-2024", "1st Semester"),
+                ("2023-2024", "2nd Semester"),
+                ("2024-2025", "1st Semester"),
+                ("2024-2025", "2nd Semester"),
+                ("2025-2026", "1st Semester"),
+            };
+
+            for (int i = 0; i < terms.Length; i++)
+            {
+                var (ay, term) = terms[i];
+                _db.Semesters.Add(new Semester
+                {
+                    AcademicYear = ay,
+                    Term = term,
+                    IsActive = i == terms.Length - 1,   // newest is the active one
+                    SortKey = Semester.ComputeSortKey(ay, term)
+                });
+            }
             await _db.SaveChangesAsync();
         }
-        log.Add("3 semesters created");
 
-        // === 4. Import Subjects (for active semester) ===
-        var activeSemester = await _db.Semesters.FirstAsync(s => s.IsActive);
+        var semesters = await _db.Semesters.OrderBy(s => s.SortKey).ToListAsync();
+        log.Add($"{semesters.Count} semesters created");
+
+        // === 4. Teaching assignments for EVERY semester ===
+        // Each course records the program that owns it (SUP-02), which is what lets a
+        // Program Chair see faculty from other departments teaching in their program (PC-01).
         var subjectLines = await ReadCsvFile(Path.Combine(samplesPath, "subjects.csv"));
         int subjectsCreated = 0;
-        foreach (var fields in subjectLines.Skip(1))
+
+        foreach (var semester in semesters)
         {
-            if (fields.Length < 4) continue;
-            var faculty = await _userManager.FindByEmailAsync(fields[0].Trim());
-            if (faculty is null) continue;
-            var subjectCode = fields[1].Trim();
-            var section = fields[3].Trim();
-
-            if (await _db.FacultySubjects.AnyAsync(s => s.FacultyId == faculty.Id && s.SubjectCode == subjectCode && s.Section == section && s.SemesterId == activeSemester.Id))
-                continue;
-
-            _db.FacultySubjects.Add(new FacultySubject
+            foreach (var fields in subjectLines.Skip(1))
             {
-                FacultyId = faculty.Id, SemesterId = activeSemester.Id,
-                SubjectCode = subjectCode, SubjectName = fields[2].Trim(), Section = section
-            });
-            subjectsCreated++;
+                if (fields.Length < 4) continue;
+
+                var faculty = await _userManager.FindByEmailAsync(fields[0].Trim());
+                if (faculty is null) continue;
+
+                var subjectCode = fields[1].Trim();
+                var section = fields[3].Trim();
+                var programCode = fields.Length > 4 ? fields[4].Trim() : "";
+
+                if (await _db.FacultySubjects.AnyAsync(s => s.FacultyId == faculty.Id
+                        && s.SubjectCode == subjectCode && s.Section == section
+                        && s.SemesterId == semester.Id))
+                    continue;
+
+                var program = string.IsNullOrWhiteSpace(programCode) ? null
+                    : await _db.AcademicPrograms.FirstOrDefaultAsync(p => p.Code == programCode);
+
+                _db.FacultySubjects.Add(new FacultySubject
+                {
+                    FacultyId = faculty.Id,
+                    SemesterId = semester.Id,
+                    SubjectCode = subjectCode,
+                    SubjectName = fields[2].Trim(),
+                    Section = section,
+                    ProgramId = program?.Id,
+                    TeachingMemoNumber = $"TM-{semester.AcademicYear.Split('-')[0]}-{semester.Id:D3}"
+                });
+                subjectsCreated++;
+            }
         }
         await _db.SaveChangesAsync();
-        log.Add($"{subjectsCreated} subjects assigned");
+        log.Add($"{subjectsCreated} teaching assignments across {semesters.Count} semesters");
 
-        // === 5. Import Enrollments ===
+        // === 5. Enrollments for every semester ===
         var enrollLines = await ReadCsvFile(Path.Combine(samplesPath, "enrollments.csv"));
         int enrollsCreated = 0;
-        foreach (var fields in enrollLines.Skip(1))
-        {
-            if (fields.Length < 3) continue;
-            var student = await _userManager.FindByEmailAsync(fields[0].Trim());
-            if (student is null) continue;
-            var subject = await _db.FacultySubjects.FirstOrDefaultAsync(s =>
-                s.SubjectCode == fields[1].Trim() && s.Section == fields[2].Trim() && s.SemesterId == activeSemester.Id);
-            if (subject is null) continue;
-            if (await _db.StudentEnrollments.AnyAsync(e => e.FacultySubjectId == subject.Id && e.StudentId == student.Id)) continue;
 
-            _db.StudentEnrollments.Add(new StudentEnrollment { FacultySubjectId = subject.Id, StudentId = student.Id });
-            enrollsCreated++;
+        foreach (var semester in semesters)
+        {
+            foreach (var fields in enrollLines.Skip(1))
+            {
+                if (fields.Length < 3) continue;
+
+                var student = await _userManager.FindByEmailAsync(fields[0].Trim());
+                if (student is null) continue;
+
+                var subject = await _db.FacultySubjects.FirstOrDefaultAsync(s =>
+                    s.SubjectCode == fields[1].Trim() && s.Section == fields[2].Trim()
+                    && s.SemesterId == semester.Id);
+                if (subject is null) continue;
+
+                if (await _db.StudentEnrollments.AnyAsync(e => e.FacultySubjectId == subject.Id
+                        && e.StudentId == student.Id))
+                    continue;
+
+                _db.StudentEnrollments.Add(new StudentEnrollment
+                {
+                    FacultySubjectId = subject.Id,
+                    StudentId = student.Id
+                });
+                enrollsCreated++;
+            }
         }
         await _db.SaveChangesAsync();
         log.Add($"{enrollsCreated} enrollments created");
 
-        // === 6. Create 3 Evaluation Periods ===
-        var semesters = await _db.Semesters.OrderBy(s => s.Id).ToListAsync();
-        var periodsToCreate = new List<EvaluationPeriod>();
+        // === 6. One end-of-semester evaluation per semester ===
+        // Per CMO No. 19 and the change request, evaluation runs once, at the end of the
+        // semester — students first, then supervisors. There is no midterm evaluation.
         if (!_db.EvaluationPeriods.Any())
         {
-            periodsToCreate.Add(new EvaluationPeriod { Name = "Midterm Evaluation", SemesterId = semesters[0].Id, StartDate = new DateTime(2024, 10, 1), EndDate = new DateTime(2024, 10, 15), Stage = EvaluationStage.Closed, ClosedAt = new DateTime(2024, 10, 16) });
-            periodsToCreate.Add(new EvaluationPeriod { Name = "Final Evaluation", SemesterId = semesters[1].Id, StartDate = new DateTime(2025, 3, 1), EndDate = new DateTime(2025, 3, 15), Stage = EvaluationStage.Closed, ClosedAt = new DateTime(2025, 3, 16) });
-            periodsToCreate.Add(new EvaluationPeriod { Name = "Midterm Evaluation", SemesterId = semesters[2].Id, StartDate = new DateTime(2025, 10, 1), EndDate = new DateTime(2025, 12, 31), Stage = EvaluationStage.StudentEvaluation, StudentStageOpenedAt = new DateTime(2025, 10, 1) });
-            _db.EvaluationPeriods.AddRange(periodsToCreate);
+            for (int i = 0; i < semesters.Count; i++)
+            {
+                var semester = semesters[i];
+                var isCurrent = i == semesters.Count - 1;
+
+                // 1st Semester ends around October, 2nd Semester around March
+                int startYear = int.Parse(semester.AcademicYear.Split('-')[0]);
+                var (endMonth, endYear) = semester.Term == "1st Semester"
+                    ? (10, startYear)
+                    : (3, startYear + 1);
+
+                var start = new DateTime(endYear, endMonth, 1);
+
+                _db.EvaluationPeriods.Add(new EvaluationPeriod
+                {
+                    Name = "End-of-Semester Evaluation",
+                    SemesterId = semester.Id,
+                    StartDate = start,
+                    EndDate = start.AddDays(30),
+                    // Past semesters are finished; the current one is open to students.
+                    Stage = isCurrent ? EvaluationStage.StudentEvaluation : EvaluationStage.Closed,
+                    StudentStageOpenedAt = start,
+                    SupervisorStageOpenedAt = isCurrent ? null : start.AddDays(10),
+                    DeanStageOpenedAt = isCurrent ? null : start.AddDays(18),
+                    ClosedAt = isCurrent ? null : start.AddDays(30)
+                });
+            }
             await _db.SaveChangesAsync();
         }
-        log.Add("3 evaluation periods created");
+        log.Add($"{await _db.EvaluationPeriods.CountAsync()} end-of-semester evaluation periods");
 
-        // === 7. Generate Sample Evaluations ===
-        // Call the existing method logic inline
-        var allPeriods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderBy(p => p.StartDate).ToListAsync();
-        var allFaculty = await _userManager.GetUsersInRoleAsync("Faculty");
-        var allStudents = await _userManager.GetUsersInRoleAsync("Student");
-        var deans = await _userManager.GetUsersInRoleAsync("Dean");
-        var chairs = await _userManager.GetUsersInRoleAsync("ProgramChair");
-        var supervisors = deans.Concat(chairs).ToList();
+        // === 7. Sample evaluations ===
+        var generated = await GenerateEvaluationsAsync();
+        log.Add($"{generated} evaluations generated & results computed");
 
-        var studentCriteria = await _db.EvaluationCriteria.Include(c => c.Category).Where(c => c.Category.EvaluatorType == "Student").ToListAsync();
-        var supervisorCriteria = await _db.EvaluationCriteria.Include(c => c.Category).Where(c => c.Category.EvaluatorType == "Supervisor").ToListAsync();
-
-        var rng = new Random(42);
-        int totalEvals = 0;
-
-        var studentComments = new[]
-        {
-            "Very approachable and explains lessons clearly.",
-            "Good instructor overall. Makes the subject interesting.",
-            "Sometimes rushes through topics. Needs to slow down a bit.",
-            "Very knowledgeable and passionate about teaching.",
-            "Gives clear examples that relate to real-life situations.",
-            "Could improve on time management during class.",
-            "One of the best teachers I've had. Very patient and understanding.",
-            "Provides helpful feedback on assignments and projects.",
-            "Very organized and always comes prepared for class.",
-            "Fair and consistent in grading. Explains rubrics well.",
-            "Makes difficult concepts easy to understand.",
-            "Always willing to help students during consultation hours.",
-        };
-
-        var supComments = new[]
-        {
-            "Faculty demonstrates strong commitment to teaching. Recommended for continued professional development.",
-            "Consistently meets instructional objectives. Should explore innovative teaching methodologies.",
-            "Shows dedication to subject mastery. Encourage participation in research activities.",
-            "Good classroom management skills. Consider mentoring junior faculty members.",
-            "Demonstrates effective use of technology in instruction.",
-            "Active in community extension activities. Maintain engagement in professional organizations.",
-            "Reliable and punctual. Shows improvement from previous evaluation period.",
-            "Strong pedagogical skills. Recommended for advanced teaching certification training.",
-            "Contributes positively to department activities. Should pursue further graduate studies.",
-            "Effective communicator with students. Continue developing assessment strategies.",
-        };
-
-        // Per-semester rating profiles for trend variation
-        var profilesBySemester = new (int Min, int Max)[][]
-        {
-            [(3,4),(3,4),(2,4),(3,5),(1,3),(2,4),(2,3),(3,5),(2,4),(1,3)],
-            [(3,5),(4,5),(3,4),(4,5),(2,3),(3,4),(2,4),(4,5),(3,4),(2,3)],
-            [(4,5),(4,5),(3,5),(4,5),(2,4),(3,5),(3,4),(4,5),(3,5),(2,4)],
-        };
-
-        for (int pi = 0; pi < allPeriods.Count; pi++)
-        {
-            var period = allPeriods[pi];
-            var semProfiles = profilesBySemester[Math.Min(pi, profilesBySemester.Length - 1)];
-
-            var semSubjects = await _db.FacultySubjects.Where(s => s.SemesterId == period.SemesterId).ToListAsync();
-            if (semSubjects.Count == 0)
-            {
-                foreach (var f in allFaculty)
-                {
-                    semSubjects.Add(new FacultySubject { FacultyId = f.Id, SemesterId = period.SemesterId, SubjectCode = $"SUBJ-{rng.Next(100, 999)}", SubjectName = "General Subject", Section = "Section A" });
-                }
-                _db.FacultySubjects.AddRange(semSubjects);
-                await _db.SaveChangesAsync();
-            }
-
-            for (int f = 0; f < allFaculty.Count; f++)
-            {
-                var fac = allFaculty[f];
-                var facSubjects = semSubjects.Where(s => s.FacultyId == fac.Id).ToList();
-                if (facSubjects.Count == 0) continue;
-
-                var profile = semProfiles[f % semProfiles.Length];
-
-                int evalCount = rng.Next(4, 9);
-                for (int e = 0; e < evalCount; e++)
-                {
-                    var student = allStudents[(f * 3 + e) % allStudents.Count];
-                    var subj = facSubjects[e % facSubjects.Count];
-
-                    if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == student.Id && ev.FacultyId == fac.Id && ev.FacultySubjectId == subj.Id && ev.EvaluationPeriodId == period.Id))
-                        continue;
-
-                    _db.Evaluations.Add(new Evaluation
-                    {
-                        EvaluationPeriodId = period.Id, FacultyId = fac.Id, EvaluatorId = student.Id,
-                        EvaluatorType = "Student", FacultySubjectId = subj.Id,
-                        SubmittedAt = period.StartDate.AddDays(rng.Next(0, 10)),
-                        Comments = rng.Next(0, 5) <= 1 ? studentComments[rng.Next(studentComments.Length)] : null,
-                        Responses = studentCriteria.Select(c => new EvaluationResponse { CriterionId = c.Id, Rating = Math.Clamp(rng.Next(profile.Min, profile.Max + 1), 1, 5) }).ToList()
-                    });
-                    totalEvals++;
-                }
-
-                var supervisor = supervisors[f % supervisors.Count];
-                if (!await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == supervisor.Id && ev.FacultyId == fac.Id && ev.EvaluationPeriodId == period.Id))
-                {
-                    _db.Evaluations.Add(new Evaluation
-                    {
-                        EvaluationPeriodId = period.Id, FacultyId = fac.Id, EvaluatorId = supervisor.Id,
-                        EvaluatorType = "Supervisor", SubmittedAt = period.StartDate.AddDays(rng.Next(5, 14)),
-                        Comments = supComments[f % supComments.Length],
-                        Responses = supervisorCriteria.Select(c => new EvaluationResponse { CriterionId = c.Id, Rating = Math.Clamp(rng.Next(profile.Min, profile.Max + 1), 1, 5) }).ToList()
-                    });
-                    totalEvals++;
-                }
-            }
-
-            await _db.SaveChangesAsync();
-            await _evalService.ComputeResultsAsync(period.Id);
-        }
-
-        log.Add($"{totalEvals} evaluations generated & results computed");
+        // === 8. Development plans for the closed periods ===
+        var plansCreated = await GenerateDevelopmentPlansAsync();
+        log.Add($"{plansCreated} development plans recorded");
 
         TempData["Success"] = "Demo setup complete: " + string.Join(" → ", log);
         return RedirectToAction(nameof(Index));
     }
+
 
     private static async Task<List<string[]>> ReadCsvFile(string path)
     {
@@ -577,12 +537,11 @@ public class BatchImportController : Controller
         }
         return lines;
     }
-
     [HttpPost]
     public async Task<IActionResult> GenerateSampleEvaluations()
     {
-        var periods = await _db.EvaluationPeriods.Include(p => p.Semester).ToListAsync();
-        if (periods.Count == 0)
+        var periodCount = await _db.EvaluationPeriods.CountAsync();
+        if (periodCount == 0)
         {
             TempData["Error"] = "No evaluation periods found. Create at least one evaluation period first.";
             return RedirectToAction(nameof(Index));
@@ -597,174 +556,321 @@ public class BatchImportController : Controller
             return RedirectToAction(nameof(Index));
         }
 
+        var total = await GenerateEvaluationsAsync();
+        TempData["Success"] = $"{total} sample evaluations generated and results computed.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    private static readonly string[] StudentComments =
+    [
+        "Very approachable and explains lessons clearly.",
+        "Good instructor overall. Makes the subject interesting.",
+        "Sometimes rushes through topics. Needs to slow down a bit.",
+        "Very knowledgeable and passionate about teaching.",
+        "Gives clear examples that relate to real-life situations.",
+        "Could improve on time management during class.",
+        "One of the best teachers I've had. Very patient and understanding.",
+        "Provides helpful feedback on assignments and projects.",
+        "Very organized and always comes prepared for class.",
+        "Fair and consistent in grading. Explains rubrics well.",
+        "Makes difficult concepts easy to understand.",
+        "Always willing to help students during consultation hours.",
+    ];
+
+    private static readonly string[] SupervisorComments =
+    [
+        "Faculty demonstrates strong commitment to teaching. Recommended for continued professional development.",
+        "Consistently meets instructional objectives. Should explore innovative teaching methodologies.",
+        "Shows dedication to subject mastery. Encourage participation in research activities.",
+        "Good classroom management skills. Consider mentoring junior faculty members.",
+        "Demonstrates effective use of technology in instruction.",
+        "Active in community extension activities. Maintain engagement in professional organizations.",
+        "Reliable and punctual. Shows improvement from previous evaluation period.",
+        "Strong pedagogical skills. Recommended for advanced teaching certification training.",
+        "Contributes positively to department activities. Should pursue further graduate studies.",
+        "Effective communicator with students. Continue developing assessment strategies.",
+    ];
+
+    /// <summary>
+    /// Generates student and supervisor evaluations for every period.
+    ///
+    /// Supervisor evaluations follow the same rules the live rosters use, so the demo
+    /// data matches what the system would actually produce:
+    ///   PC-01  each faculty member is evaluated by the Chair of every program that
+    ///          owns a course they teach — including Chairs of other departments;
+    ///   DN-01  each Program Chair is evaluated by the Dean of their college;
+    ///   AA-01  a Chair whose college has no Dean is left for the AA account.
+    /// </summary>
+    private async Task<int> GenerateEvaluationsAsync()
+    {
+        var periods = await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .OrderBy(p => p.Semester.SortKey)
+            .ToListAsync();
+
+        var allFaculty = await _userManager.GetUsersInRoleAsync("Faculty");
+        var chairs = (await _userManager.GetUsersInRoleAsync("ProgramChair")).Where(c => c.IsActive).ToList();
+        var deans = (await _userManager.GetUsersInRoleAsync("Dean")).Where(d => d.IsActive).ToList();
+
         var studentCriteria = await _db.EvaluationCriteria
-            .Include(c => c.Category)
-            .Where(c => c.Category.EvaluatorType == "Student")
-            .ToListAsync();
-
+            .Include(c => c.Category).Where(c => c.Category.EvaluatorType == "Student").ToListAsync();
         var supervisorCriteria = await _db.EvaluationCriteria
-            .Include(c => c.Category)
-            .Where(c => c.Category.EvaluatorType == "Supervisor")
-            .ToListAsync();
-
-        // Find supervisors (Dean or ProgramChair)
-        var deans = await _userManager.GetUsersInRoleAsync("Dean");
-        var chairs = await _userManager.GetUsersInRoleAsync("ProgramChair");
-        var supervisors = deans.Concat(chairs).ToList();
-        if (supervisors.Count == 0)
-        {
-            TempData["Error"] = "No supervisors (Dean/ProgramChair) found. Import supervisor users first.";
-            return RedirectToAction(nameof(Index));
-        }
+            .Include(c => c.Category).Where(c => c.Category.EvaluatorType == "Supervisor").ToListAsync();
 
         var rng = new Random(42);
         int totalEvals = 0;
 
-        var studentComments = new[]
+        // Ratings drift upward across semesters so the five-semester trend (DA-01) is
+        // visible. A rating is (total score / 75) x 100, so a band of [min,max] averages
+        // to ((min+max)/2 / 5) x 100 — e.g. [3,5] lands near 80, [4,5] near 90.
+        // The spread is chosen to look like a real college: most faculty "Often
+        // Manifested" (61-90), a couple "Always Manifested" (91+), and one or two
+        // consistently weak so the low-performer panel and development plans have
+        // something real to show.
+        var profilesBySemester = new (int Min, int Max)[][]
         {
-            "Very approachable and explains lessons clearly.",
-            "Good instructor overall. Makes the subject interesting.",
-            "Sometimes rushes through topics. Needs to slow down a bit.",
-            "Very knowledgeable and passionate about teaching.",
-            "Gives clear examples that relate to real-life situations.",
-            "Could improve on time management during class.",
-            "One of the best teachers I've had. Very patient and understanding.",
-            "The instructor encourages students to participate in class discussions.",
-            "Provides helpful feedback on assignments and projects.",
-            "Very organized and always comes prepared for class.",
-            "Should give more hands-on activities and exercises.",
-            "Fair and consistent in grading. Explains rubrics well.",
-            "Makes difficult concepts easy to understand.",
-            "Could use more visual aids and multimedia in lectures.",
-            "Always willing to help students during consultation hours.",
+            [(3,4),(3,5),(3,4),(4,5),(2,4),(3,4),(2,4),(4,5),(3,4),(2,4)], // ~72 avg
+            [(3,4),(3,5),(3,5),(4,5),(2,4),(3,4),(3,4),(4,5),(3,5),(2,4)], // ~75
+            [(3,5),(4,5),(3,5),(4,5),(3,4),(3,5),(3,4),(4,5),(3,5),(2,4)], // ~79
+            [(4,5),(4,5),(3,5),(4,5),(3,4),(4,5),(3,5),(5,5),(4,5),(3,4)], // ~85
+            [(4,5),(4,5),(4,5),(5,5),(3,5),(4,5),(3,5),(5,5),(4,5),(3,4)], // ~88
         };
 
-        var supComments = new[]
+        for (int pi = 0; pi < periods.Count; pi++)
         {
-            "Faculty demonstrates strong commitment to teaching and student development. Recommended for continued professional development.",
-            "Consistently meets instructional objectives. Should explore innovative teaching methodologies.",
-            "Shows dedication to subject mastery. Encourage participation in research activities.",
-            "Good classroom management skills. Consider mentoring junior faculty members.",
-            "Demonstrates effective use of technology in instruction. Continue to update course materials.",
-            "Active in community extension activities. Maintain engagement in professional organizations.",
-            "Reliable and punctual. Shows improvement from previous evaluation period.",
-            "Strong pedagogical skills. Recommended for advanced teaching certification training.",
-            "Contributes positively to department activities. Should pursue further graduate studies.",
-            "Effective communicator with students. Continue developing assessment strategies.",
-        };
+            var period = periods[pi];
+            var profiles = profilesBySemester[Math.Min(pi, profilesBySemester.Length - 1)];
 
-        // Sort periods by date for trend variation
-        var sortedPeriods = periods.OrderBy(p => p.StartDate).ToList();
+            // A period that is still at the student stage is genuinely mid-flight:
+            // only some students have submitted, supervisors have not started, and
+            // results are not computed until AA Staff closes it. Generating a full
+            // set here would show data that the staged workflow could not have
+            // produced yet (AAS-03).
+            bool studentStageInProgress = period.Stage == EvaluationStage.StudentEvaluation;
+            bool supervisorsHaveSubmitted = period.Stage == EvaluationStage.Closed;
 
-        for (int pi = 0; pi < sortedPeriods.Count; pi++)
-        {
-            var period = sortedPeriods[pi];
-
-            // Get or create subjects for this period's semester
-            var semesterSubjects = await _db.FacultySubjects
+            // Assignments in this semester, so supervisors can be derived from teaching load
+            var assignments = await _db.FacultySubjects
                 .Where(s => s.SemesterId == period.SemesterId)
                 .ToListAsync();
 
-            // If no subjects exist for this semester, create generic ones
-            if (semesterSubjects.Count == 0)
+            if (assignments.Count == 0) continue;
+
+            var enrollments = await _db.StudentEnrollments
+                .Where(e => e.FacultySubject.SemesterId == period.SemesterId)
+                .ToListAsync();
+
+            // ---- Student evaluations: one per enrolled student per class ----
+            for (int f = 0; f < allFaculty.Count; f++)
             {
-                foreach (var f in faculty)
+                var fac = allFaculty[f];
+                var profile = profiles[f % profiles.Length];
+                var facSubjects = assignments.Where(s => s.FacultyId == fac.Id).ToList();
+
+                foreach (var subject in facSubjects)
                 {
-                    semesterSubjects.Add(new FacultySubject
+                    var enrolled = enrollments.Where(e => e.FacultySubjectId == subject.Id).ToList();
+
+                    // Roughly two thirds submitted so far while the stage is still open
+                    if (studentStageInProgress)
+                        enrolled = enrolled.Where((_, idx) => idx % 3 != 2).ToList();
+
+                    foreach (var enrollment in enrolled)
                     {
-                        FacultyId = f.Id,
-                        SemesterId = period.SemesterId,
-                        SubjectCode = $"SUBJ-{rng.Next(100, 999)}",
-                        SubjectName = "General Subject",
-                        Section = "Section A"
-                    });
-                }
-                _db.FacultySubjects.AddRange(semesterSubjects);
-                await _db.SaveChangesAsync();
-            }
+                        if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == enrollment.StudentId
+                                && ev.FacultyId == fac.Id && ev.FacultySubjectId == subject.Id
+                                && ev.EvaluationPeriodId == period.Id))
+                            continue;
 
-            // Rating profiles improve over time for trend visibility
-            int baseMin = Math.Max(1, 2 + pi);  // 2, 3, 4, ...
-            int baseMax = Math.Min(5, 4 + pi);  // 4, 5, 5, ...
-
-            for (int f = 0; f < faculty.Count; f++)
-            {
-                var fac = faculty[f];
-                var facSubjects = semesterSubjects.Where(s => s.FacultyId == fac.Id).ToList();
-                if (facSubjects.Count == 0) continue;
-
-                // Vary ratings per faculty for realistic spread
-                int fMin = Math.Max(1, baseMin + (f % 3 == 0 ? -1 : 0));
-                int fMax = Math.Min(5, baseMax + (f % 2 == 0 ? 0 : 1));
-
-                // Student evaluations (4-8 per faculty)
-                int evalCount = rng.Next(4, 9);
-                for (int e = 0; e < evalCount; e++)
-                {
-                    var student = students[(f * 3 + e) % students.Count];
-                    var subj = facSubjects[e % facSubjects.Count];
-
-                    var alreadyExists = await _db.Evaluations.AnyAsync(ev =>
-                        ev.EvaluatorId == student.Id &&
-                        ev.FacultyId == fac.Id &&
-                        ev.FacultySubjectId == subj.Id &&
-                        ev.EvaluationPeriodId == period.Id);
-                    if (alreadyExists) continue;
-
-                    _db.Evaluations.Add(new Evaluation
-                    {
-                        EvaluationPeriodId = period.Id,
-                        FacultyId = fac.Id,
-                        EvaluatorId = student.Id,
-                        EvaluatorType = "Student",
-                        FacultySubjectId = subj.Id,
-                        SubmittedAt = period.StartDate.AddDays(rng.Next(0, 10)),
-                        Comments = rng.Next(0, 5) <= 1 ? studentComments[rng.Next(studentComments.Length)] : null,
-                        Responses = studentCriteria.Select(c => new EvaluationResponse
+                        _db.Evaluations.Add(new Evaluation
                         {
-                            CriterionId = c.Id,
-                            Rating = Math.Clamp(rng.Next(fMin, fMax + 1), 1, 5)
-                        }).ToList()
-                    });
-                    totalEvals++;
+                            EvaluationPeriodId = period.Id,
+                            FacultyId = fac.Id,
+                            EvaluatorId = enrollment.StudentId,
+                            EvaluatorType = "Student",
+                            FacultySubjectId = subject.Id,
+                            SubmittedAt = period.StartDate.AddDays(rng.Next(0, 8)),
+                            Comments = rng.Next(0, 5) <= 1 ? StudentComments[rng.Next(StudentComments.Length)] : null,
+                            Responses = studentCriteria.Select(c => new EvaluationResponse
+                            {
+                                CriterionId = c.Id,
+                                Rating = Math.Clamp(rng.Next(profile.Min, profile.Max + 1), 1, 5)
+                            }).ToList()
+                        });
+                        totalEvals++;
+                    }
                 }
 
-                // Supervisor evaluation
-                var supervisor = supervisors[f % supervisors.Count];
-                var supExists = await _db.Evaluations.AnyAsync(ev =>
-                    ev.EvaluatorId == supervisor.Id &&
-                    ev.FacultyId == fac.Id &&
-                    ev.EvaluationPeriodId == period.Id);
+                // ---- PC-01: the Chair of every program owning a course this faculty teaches ----
+                var owningProgramIds = facSubjects
+                    .Where(s => s.ProgramId is not null)
+                    .Select(s => s.ProgramId!.Value)
+                    .Distinct()
+                    .ToList();
 
-                if (!supExists)
+                foreach (var programId in owningProgramIds)
                 {
+                    if (!supervisorsHaveSubmitted) break;
+
+                    var chair = chairs.FirstOrDefault(c => c.ProgramId == programId && c.Id != fac.Id);
+                    if (chair is null) continue;
+
+                    if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == chair.Id
+                            && ev.FacultyId == fac.Id && ev.EvaluationPeriodId == period.Id))
+                        continue;
+
                     _db.Evaluations.Add(new Evaluation
                     {
                         EvaluationPeriodId = period.Id,
                         FacultyId = fac.Id,
-                        EvaluatorId = supervisor.Id,
+                        EvaluatorId = chair.Id,
                         EvaluatorType = "Supervisor",
-                        SubmittedAt = period.StartDate.AddDays(rng.Next(5, 14)),
-                        Comments = supComments[f % supComments.Length],
+                        SubmittedAt = period.StartDate.AddDays(rng.Next(10, 18)),
+                        Comments = SupervisorComments[f % SupervisorComments.Length],
                         Responses = supervisorCriteria.Select(c => new EvaluationResponse
                         {
                             CriterionId = c.Id,
-                            Rating = Math.Clamp(rng.Next(fMin, fMax + 1), 1, 5)
+                            Rating = Math.Clamp(rng.Next(profile.Min, profile.Max + 1), 1, 5)
                         }).ToList()
                     });
                     totalEvals++;
                 }
+            }
+
+            // ---- DN-01: each Program Chair is evaluated by the Dean of their college ----
+            for (int ci = 0; ci < chairs.Count && supervisorsHaveSubmitted; ci++)
+            {
+                var chair = chairs[ci];
+                var dean = deans.FirstOrDefault(d => d.CollegeId == chair.CollegeId);
+
+                // AA-01: a Chair with no Dean in their college is left for the AA account,
+                // so no evaluation is generated for them here.
+                if (dean is null) continue;
+
+                if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == dean.Id
+                        && ev.FacultyId == chair.Id && ev.EvaluationPeriodId == period.Id))
+                    continue;
+
+                var profile = profiles[ci % profiles.Length];
+                _db.Evaluations.Add(new Evaluation
+                {
+                    EvaluationPeriodId = period.Id,
+                    FacultyId = chair.Id,
+                    EvaluatorId = dean.Id,
+                    EvaluatorType = "Supervisor",
+                    SubmittedAt = period.StartDate.AddDays(rng.Next(18, 26)),
+                    Comments = SupervisorComments[ci % SupervisorComments.Length],
+                    Responses = supervisorCriteria.Select(c => new EvaluationResponse
+                    {
+                        CriterionId = c.Id,
+                        Rating = Math.Clamp(rng.Next(profile.Min, profile.Max + 1), 1, 5)
+                    }).ToList()
+                });
+                totalEvals++;
             }
 
             await _db.SaveChangesAsync();
 
-            // Compute results
-            await _evalService.ComputeResultsAsync(period.Id);
+            // Results are computed when AA Staff closes the period (AAS-03)
+            if (period.Stage == EvaluationStage.Closed)
+                await _evalService.ComputeResultsAsync(period.Id);
         }
 
-        TempData["Success"] = $"Sample evaluations generated: {totalEvals} evaluations across {sortedPeriods.Count} period(s). Results computed.";
-        return RedirectToAction(nameof(Index));
+        return totalEvals;
     }
+
+    /// <summary>
+    /// PC-02/FC-02: for closed periods, records the Development Plan the supervisor
+    /// entered and — for all but the most recent closed period — the faculty member's
+    /// acknowledgement, so every FEDAF status is represented in the demo data.
+    /// </summary>
+    private async Task<int> GenerateDevelopmentPlansAsync()
+    {
+        var closedPeriods = await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .Where(p => p.Stage == EvaluationStage.Closed)
+            .OrderBy(p => p.Semester.SortKey)
+            .ToListAsync();
+
+        if (closedPeriods.Count == 0) return 0;
+
+        var areas = new[]
+        {
+            "Pacing of lectures during the second half of the term.",
+            "Turnaround time on returning graded outputs.",
+            "Use of ICT tools and platforms in classroom delivery.",
+            "Consistency of consultation hours.",
+            "Alignment of assessments with the stated learning outcomes.",
+        };
+        var activities = new[]
+        {
+            "Attend the campus workshop on outcomes-based assessment.",
+            "Enrol in the LMS facilitation course offered by the ICT office.",
+            "Join the college mentoring circle for one semester.",
+            "Complete the CHED webinar series on learner-centred teaching.",
+            "Sit in on two peer classes and submit a reflection.",
+        };
+        var actions = new[]
+        {
+            "Submit a revised course pack before the next term begins.",
+            "Return all graded outputs within one week, reviewed monthly by the Chair.",
+            "Publish and observe fixed consultation hours from the first week of the term.",
+            "Map every assessment to a learning outcome in the syllabus.",
+            "Report progress to the Chair at midterm and end of term.",
+        };
+
+        int created = 0;
+        int n = 0;
+
+        // The most recent closed period is left awaiting acknowledgement so the
+        // "Development Plan Entered" status is visible alongside "Acknowledged".
+        var latestClosed = closedPeriods[^1];
+
+        foreach (var period in closedPeriods)
+        {
+            var results = await _db.EvaluationResults
+                .Where(r => r.EvaluationPeriodId == period.Id)
+                .ToListAsync();
+
+            foreach (var result in results)
+            {
+                if (await _db.DevelopmentPlans.AnyAsync(d => d.EvaluationPeriodId == period.Id
+                        && d.FacultyId == result.FacultyId))
+                    continue;
+
+                var supervisor = await _db.Evaluations
+                    .Where(e => e.EvaluationPeriodId == period.Id
+                             && e.FacultyId == result.FacultyId
+                             && e.EvaluatorType == "Supervisor")
+                    .Select(e => e.EvaluatorId)
+                    .FirstOrDefaultAsync();
+
+                if (supervisor is null) continue;
+
+                var acknowledged = period.Id != latestClosed.Id;
+
+                _db.DevelopmentPlans.Add(new DevelopmentPlan
+                {
+                    EvaluationPeriodId = period.Id,
+                    FacultyId = result.FacultyId,
+                    AreasForImprovement = areas[n % areas.Length],
+                    ProposedActivities = activities[n % activities.Length],
+                    ActionPlan = actions[n % actions.Length],
+                    SupervisorSubmittedAt = period.EndDate.AddDays(-5),
+                    SupervisorId = supervisor,
+                    AcknowledgedAt = acknowledged ? period.EndDate.AddDays(-2) : null,
+                    AcknowledgedById = acknowledged ? result.FacultyId : null
+                });
+
+                created++;
+                n++;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return created;
+    }
+
 
     private static async Task<List<string[]>> ReadCsvLines(IFormFile file)
     {

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +18,24 @@ public class DashboardController : Controller
 
     // DA-01: the dashboard covers the five most recent semesters
     private const int FiveSemesters = 5;
+
+    /// <summary>
+    /// A faculty member with no student respondents has no SET rating, and their
+    /// stored 0 is "not measured", not "scored zero". Program Chairs are the usual
+    /// case: they are evaluated by their Dean (SEF) but teach no classes, so
+    /// averaging their 0 in would understate every college.
+    /// </summary>
+    private static double AverageSet(IEnumerable<EvaluationResult> results)
+    {
+        var rated = results.Where(r => r.StudentRespondents > 0).ToList();
+        return rated.Count > 0 ? Math.Round(rated.Average(r => r.StudentRating), 2) : 0;
+    }
+
+    private static double? AverageSetOrNull(IEnumerable<EvaluationResult> results)
+    {
+        var rated = results.Where(r => r.StudentRespondents > 0).ToList();
+        return rated.Count > 0 ? Math.Round(rated.Average(r => r.StudentRating), 2) : null;
+    }
 
     public DashboardController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService)
     {
@@ -54,7 +72,7 @@ public class DashboardController : Controller
             {
                 CollegeName = g.Key.Name,
                 CollegeCode = g.Key.Code,
-                AverageRating = Math.Round(g.Average(r => r.StudentRating), 2),
+                AverageRating = AverageSet(g),
                 FacultyCount = g.Count()
             })
             .OrderByDescending(c => c.AverageRating)
@@ -82,7 +100,7 @@ public class DashboardController : Controller
             {
                 Semester = g.Key.Term + ", " + g.Key.AcademicYear,
                 SortKey = g.Key.SortKey,
-                AverageRating = Math.Round(g.Average(r => r.StudentRating), 2),
+                AverageRating = AverageSet(g),
                 TotalEvaluations = g.Sum(r => r.StudentRespondents + r.SupervisorRespondents)
             })
             .ToList();
@@ -102,7 +120,8 @@ public class DashboardController : Controller
             TotalEvaluations = await _db.Evaluations.CountAsync(),
             ActiveSemester = activeSemester,
             ActivePeriod = activePeriod,
-            TopPerformers = results.OrderByDescending(r => r.StudentRating).Take(5).ToList(),
+            TopPerformers = results.Where(r => r.StudentRespondents > 0)
+                                   .OrderByDescending(r => r.StudentRating).Take(5).ToList(),
             LowPerformers = results.Where(r => r.StudentRating > 0 && r.StudentRating < 60).OrderBy(r => r.StudentRating).Take(5).ToList(),
             CollegePerformances = collegePerf,
             SemesterTrends = trends,
@@ -132,9 +151,7 @@ public class DashboardController : Controller
             .Select(s =>
             {
                 var forSemester = results.Where(r => r.EvaluationPeriod.SemesterId == s.Id).ToList();
-                return forSemester.Count > 0
-                    ? (double?)Math.Round(forSemester.Average(r => r.StudentRating), 2)
-                    : null;
+                return AverageSetOrNull(forSemester);
             })
             .ToList();
 
@@ -149,9 +166,7 @@ public class DashboardController : Controller
                     .Select(s =>
                     {
                         var forSemester = g.Where(r => r.EvaluationPeriod.SemesterId == s.Id).ToList();
-                        return forSemester.Count > 0
-                            ? (double?)Math.Round(forSemester.Average(r => r.StudentRating), 2)
-                            : null;
+                        return AverageSetOrNull(forSemester);
                     })
                     .ToList();
 
@@ -177,17 +192,18 @@ public class DashboardController : Controller
             var collegeAverages = latestResults
                 .Where(r => r.Faculty.CollegeId is not null)
                 .GroupBy(r => r.Faculty.CollegeId!.Value)
-                .ToDictionary(g => g.Key, g => Math.Round(g.Average(r => r.StudentRating), 2));
+                .ToDictionary(g => g.Key, g => AverageSet(g));
 
             analysis.ProgramComparisons = latestResults
-                .Where(r => r.Faculty.Program is not null && r.Faculty.CollegeId is not null)
+                .Where(r => r.Faculty.Program is not null && r.Faculty.CollegeId is not null
+                         && r.StudentRespondents > 0)
                 .GroupBy(r => r.Faculty.Program!)
                 .Select(g => new ProgramVsCollege
                 {
                     ProgramCode = g.Key.Code,
                     ProgramName = g.Key.Name,
                     CollegeCode = g.First().Faculty.College?.Code ?? "—",
-                    ProgramAverage = Math.Round(g.Average(r => r.StudentRating), 2),
+                    ProgramAverage = AverageSet(g),
                     CollegeAverage = collegeAverages.GetValueOrDefault(g.First().Faculty.CollegeId!.Value),
                     FacultyCount = g.Count()
                 })
@@ -247,7 +263,8 @@ public class DashboardController : Controller
 
                 var collegeData = await _db.EvaluationResults
                     .Include(r => r.Faculty).ThenInclude(f => f.College)
-                    .Where(r => r.EvaluationPeriodId == latestPeriod.Id && r.Faculty.College != null)
+                    .Where(r => r.EvaluationPeriodId == latestPeriod.Id && r.Faculty.College != null
+                             && r.StudentRespondents > 0)
                     .GroupBy(r => r.Faculty.College!.Code)
                     .Select(g => new { Label = g.Key, Avg = Math.Round(g.Average(r => r.StudentRating), 2) })
                     .ToListAsync();
@@ -270,7 +287,7 @@ public class DashboardController : Controller
                 var trendData = allResults
                     .GroupBy(r => r.EvaluationPeriod.Semester)
                     .OrderBy(g => g.Key.SortKey)
-                    .Select(g => new { Label = g.Key.Term + " " + g.Key.AcademicYear, Avg = Math.Round(g.Average(r => r.StudentRating), 2) })
+                    .Select(g => new { Label = g.Key.Term + " " + g.Key.AcademicYear, Avg = AverageSet(g) })
                     .ToList();
 
                 return Json(new { labels = trendData.Select(t => t.Label), data = trendData.Select(t => t.Avg) });

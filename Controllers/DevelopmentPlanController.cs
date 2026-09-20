@@ -135,7 +135,18 @@ public class DevelopmentPlanController : Controller
         ViewBag.Periods = periods;
 
         if (!periodId.HasValue && periods.Count > 0)
-            periodId = periods.First().Id;
+        {
+            // Open on the most recent period that actually has results to work with.
+            // The current period has none until AA Staff closes it (AAS-03), so
+            // defaulting to it would show an empty screen.
+            var periodsWithResults = await _db.EvaluationResults
+                .Select(r => r.EvaluationPeriodId)
+                .Distinct()
+                .ToListAsync();
+
+            periodId = periods.FirstOrDefault(p => periodsWithResults.Contains(p.Id))?.Id
+                       ?? periods.First().Id;
+        }
 
         ViewBag.SelectedPeriodId = periodId;
 
