@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Models;
 
@@ -13,6 +13,15 @@ public static class DbSeeder
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
 
         await context.Database.MigrateAsync();
+
+        // SUP-01: make sure every semester has a chronological sort key. Cheap
+        // to re-check, and covers rows created outside the normal screens.
+        var unkeyed = await context.Semesters.Where(s => s.SortKey == 0).ToListAsync();
+        if (unkeyed.Count > 0)
+        {
+            foreach (var semester in unkeyed) semester.RefreshSortKey();
+            await context.SaveChangesAsync();
+        }
 
         // Seed roles
         string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student", "AA", "AAStaff", "QA"];

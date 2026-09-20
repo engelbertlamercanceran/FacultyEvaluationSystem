@@ -50,6 +50,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(fs => fs.FacultyId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // SUP-02: owning program of the course
+        builder.Entity<FacultySubject>()
+            .HasOne(fs => fs.Program)
+            .WithMany()
+            .HasForeignKey(fs => fs.ProgramId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // AA-01: self-referencing designated evaluator
+        builder.Entity<ApplicationUser>()
+            .HasOne(u => u.DesignatedEvaluator)
+            .WithMany()
+            .HasForeignKey(u => u.DesignatedEvaluatorId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // SUP-01: semesters are queried in chronological order constantly
+        builder.Entity<Semester>()
+            .HasIndex(s => s.SortKey);
+
         builder.Entity<StudentEnrollment>()
             .HasOne(se => se.Student)
             .WithMany()

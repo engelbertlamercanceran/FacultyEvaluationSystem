@@ -1,4 +1,4 @@
-@model List<FacultyEvalSystem.Models.FacultySubject>
+﻿@model List<FacultyEvalSystem.Models.FacultySubject>
 @{ ViewData["Title"] = "Subject Assignments"; }
 
 <div class="row">
@@ -32,6 +32,17 @@
                             <label class="form-label">Section</label>
                             <input name="section" class="form-control" placeholder="e.g. BSIT 1A" />
                         </div>
+                        @* SUP-02: the owning program decides which Program Chair evaluates
+                           the faculty teaching this course (PC-01). *@
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Owning Program
+                                <small class="text-muted">&mdash; whose Chair evaluates this course</small>
+                            </label>
+                            <select name="programId" asp-items="(SelectList)ViewBag.Programs" class="form-select" required>
+                                <option value="">-- Select Program --</option>
+                            </select>
+                        </div>
                         <button type="submit" class="btn btn-primary w-100">Assign Subject</button>
                     </form>
                 }
@@ -43,7 +54,7 @@
             <div class="card-header">Current Semester Assignments</div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
-                    <thead><tr><th>Faculty</th><th>Subject</th><th>Section</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Faculty</th><th>Subject</th><th>Section</th><th>Program</th><th>Action</th></tr></thead>
                     <tbody>
                         @foreach (var s in Model)
                         {
@@ -51,6 +62,16 @@
                                 <td>@s.Faculty.FullName</td>
                                 <td>@s.SubjectCode - @s.SubjectName</td>
                                 <td>@(s.Section ?? "-")</td>
+                                <td>
+                                    @if (s.Program is not null)
+                                    {
+                                        <span class="badge bg-secondary">@s.Program.Code</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark" title="No Program Chair can evaluate this course until a program is set">Not set</span>
+                                    }
+                                </td>
                                 <td>
                                     <a asp-action="Enrollments" asp-route-subjectId="@s.Id" class="btn btn-outline-primary btn-sm">
                                         Enrollments
@@ -60,7 +81,7 @@
                         }
                         @if (!Model.Any())
                         {
-                            <tr><td colspan="4" class="text-center text-muted py-3">No assignments yet</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted py-3">No assignments yet</td></tr>
                         }
                     </tbody>
                 </table>

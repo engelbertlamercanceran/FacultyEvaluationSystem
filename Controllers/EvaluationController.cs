@@ -28,9 +28,11 @@ public class EvaluationController : Controller
     public async Task<IActionResult> Index()
     {
         var user = await _userManager.GetUserAsync(User);
+
+        // AAS-03: students may only submit while the period is at the student stage
         var activePeriod = await _db.EvaluationPeriods
             .Include(p => p.Semester)
-            .FirstOrDefaultAsync(p => p.Status == EvaluationStatus.Open);
+            .FirstOrDefaultAsync(p => p.Stage == EvaluationStage.StudentEvaluation);
 
         if (activePeriod is null)
             return View(new EvaluationListViewModel { ActivePeriod = null });
@@ -78,6 +80,13 @@ public class EvaluationController : Controller
         var roles = await _userManager.GetRolesAsync(user!);
         var evaluatorType = roles.Contains("Student") ? "Student" : "Supervisor";
 
+        // AAS-03: the evaluator's stage must be open
+        if (!await IsStageOpenForAsync(periodId, roles))
+        {
+            TempData["Error"] = "The evaluation is not currently open for your role.";
+            return RedirectToAction(evaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
+        }
+
         // Check if already evaluated
         var exists = await _db.Evaluations.AnyAsync(e =>
             e.EvaluatorId == user!.Id &&
@@ -88,7 +97,7 @@ public class EvaluationController : Controller
         if (exists)
         {
             TempData["Error"] = "You have already submitted an evaluation for this faculty member.";
-            return RedirectToAction("Index");
+            return RedirectToAction(evaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
         }
 
         var faculty = await _userManager.FindByIdAsync(facultyId);
@@ -131,6 +140,15 @@ public class EvaluationController : Controller
     public async Task<IActionResult> Evaluate(EvaluationFormViewModel model)
     {
         var user = await _userManager.GetUserAsync(User);
+        var roles = await _userManager.GetRolesAsync(user!);
+
+        // AAS-03: re-check on submit so the stage cannot be bypassed by posting directly
+        if (!await IsStageOpenForAsync(model.EvaluationPeriodId, roles))
+        {
+            TempData["Error"] = "The evaluation is not currently open for your role. "
+                              + "Your responses were not saved.";
+            return RedirectToAction(model.EvaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
+        }
 
         // Validate all ratings are provided
         var allCriteria = model.Categories.SelectMany(c => c.Criteria).ToList();
@@ -167,52 +185,213 @@ public class EvaluationController : Controller
             : RedirectToAction("Index");
     }
 
-    // Supervisor: list faculty to evaluate
-    [Authorize(Roles = "Dean,ProgramChair")]
+    /// <summary>AAS-03: is the given period at the stage this evaluator submits in?</summary>
+    private async Task<bool> IsStageOpenForAsync(int periodId, IList<string> roles)
+    {
+        var period = await _db.EvaluationPeriods.FindAsync(periodId);
+        if (period is null) return false;
+
+        foreach (var role in roles)
+        {
+            if (period.IsOpenFor(role)) return true;
+        }
+        return false;
+    }
+
+    // Supervisor roster. Who appears depends on the signed-in role:
+    //   PC-01  Program Chair -> faculty teaching courses owned by their program
+    //   DN-01  Dean          -> Program Chairs in their college, grouped per program
+    //   AA-01  AA            -> Program Chairs with no designated evaluator
+    [Authorize(Roles = "Dean,ProgramChair,AA")]
     public async Task<IActionResult> SupervisorEvaluate()
     {
         var user = await _userManager.GetUserAsync(User);
-        var activePeriod = await _db.EvaluationPeriods
+        var roles = await _userManager.GetRolesAsync(user!);
+        var role = roles.FirstOrDefault(r => r is "ProgramChair" or "Dean" or "AA") ?? "";
+
+        // Most recent period that has actually started
+        var period = await _db.EvaluationPeriods
             .Include(p => p.Semester)
-            .FirstOrDefaultAsync(p => p.Status == EvaluationStatus.Open);
+            .Where(p => p.Stage != EvaluationStage.NotStarted)
+            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id)
+            .FirstOrDefaultAsync();
 
-        if (activePeriod is null)
-            return View(new EvaluationListViewModel { ActivePeriod = null });
+        if (period is null)
+            return View("Index", new EvaluationListViewModel { ActivePeriod = null });
 
-        // Get faculty in same college
-        var facultyRole = await _db.Roles.FirstAsync(r => r.Name == "Faculty");
-        var facultyUsers = await _db.Users
-            .Where(u => u.CollegeId == user!.CollegeId && u.IsActive)
-            .ToListAsync();
-
-        var facultyInRole = new List<ApplicationUser>();
-        foreach (var f in facultyUsers)
+        // AAS-03: this evaluator may only submit during their own stage
+        if (!period.IsOpenFor(role))
         {
-            if (await _userManager.IsInRoleAsync(f, "Faculty"))
-                facultyInRole.Add(f);
+            return View("Index", new EvaluationListViewModel
+            {
+                ActivePeriod = period,
+                StageMessage = period.IsClosed
+                    ? $"{period.DisplayName} is closed. No further evaluations can be submitted."
+                    : $"The evaluation is currently at the \"{period.StageName}\" stage. "
+                      + "You will be able to submit once Academic Affairs opens your stage."
+            });
         }
 
         var existingEvals = await _db.Evaluations
-            .Where(e => e.EvaluatorId == user!.Id && e.EvaluationPeriodId == activePeriod.Id)
+            .Where(e => e.EvaluatorId == user!.Id && e.EvaluationPeriodId == period.Id)
             .ToListAsync();
 
-        var facultyList = facultyInRole.Select(f =>
-        {
-            var myEval = existingEvals.FirstOrDefault(x => x.FacultyId == f.Id);
-            return new FacultyToEvaluateViewModel
-            {
-                FacultyId = f.Id,
-                FacultyName = f.FullName,
-                AlreadyEvaluated = myEval is not null,
-                EvaluationId = myEval?.Id
-            };
-        }).ToList();
+        var model = new EvaluationListViewModel { ActivePeriod = period };
 
-        return View("Index", new EvaluationListViewModel
+        if (role == "ProgramChair")
+            await BuildProgramChairRosterAsync(model, user!, period, existingEvals);
+        else if (role == "Dean")
+            await BuildDeanRosterAsync(model, user!, period, existingEvals);
+        else
+            await BuildAaRosterAsync(model, period, existingEvals);
+
+        return View("Index", model);
+    }
+
+    /// <summary>
+    /// PC-01: the Chair evaluates every faculty member who teaches a course owned by
+    /// their program in this semester — including faculty whose home department is
+    /// elsewhere. Derived from actual teaching assignments, not from college membership.
+    /// </summary>
+    private async Task BuildProgramChairRosterAsync(
+        EvaluationListViewModel model, ApplicationUser chair,
+        EvaluationPeriod period, List<Evaluation> existingEvals)
+    {
+        if (chair.ProgramId is null)
         {
-            ActivePeriod = activePeriod,
-            FacultyList = facultyList
-        });
+            model.StageMessage = "Your account is not linked to a program, so the system cannot "
+                               + "determine which faculty you are responsible for. Please ask "
+                               + "Academic Affairs to set your program.";
+            return;
+        }
+
+        var assignments = await _db.FacultySubjects
+            .Include(fs => fs.Faculty).ThenInclude(f => f.College)
+            .Include(fs => fs.Faculty).ThenInclude(f => f.Program)
+            .Where(fs => fs.SemesterId == period.SemesterId
+                      && fs.ProgramId == chair.ProgramId
+                      && fs.Faculty.IsActive
+                      && fs.FacultyId != chair.Id)
+            .ToListAsync();
+
+        var program = await _db.AcademicPrograms
+            .Include(p => p.College)
+            .FirstOrDefaultAsync(p => p.Id == chair.ProgramId);
+
+        model.RosterDescription = program is not null
+            ? $"Faculty teaching {program.Code} courses this semester, by teaching assignment."
+            : "Faculty teaching courses in your program this semester.";
+
+        model.FacultyList = assignments
+            .GroupBy(fs => fs.Faculty)
+            .Select(g =>
+            {
+                var faculty = g.Key;
+                var myEval = existingEvals.FirstOrDefault(x => x.FacultyId == faculty.Id);
+                return new FacultyToEvaluateViewModel
+                {
+                    FacultyId = faculty.Id,
+                    FacultyName = faculty.FullName,
+                    AlreadyEvaluated = myEval is not null,
+                    EvaluationId = myEval?.Id,
+                    CoursesInProgram = g
+                        .Select(fs => string.IsNullOrWhiteSpace(fs.Section)
+                            ? fs.SubjectCode
+                            : $"{fs.SubjectCode} ({fs.Section})")
+                        .Distinct().OrderBy(c => c).ToList(),
+                    IsFromAnotherDepartment = faculty.ProgramId != chair.ProgramId,
+                    HomeDepartment = faculty.Program?.Code ?? faculty.College?.Code
+                };
+            })
+            .OrderBy(f => f.FacultyName)
+            .ToList();
+
+        if (model.FacultyList.Count == 0)
+            model.StageMessage = "No faculty are currently assigned to teach courses in your "
+                               + "program for this semester. Teaching assignments are imported "
+                               + "by Academic Affairs from the Teaching Memo.";
+    }
+
+    /// <summary>
+    /// DN-01: the Dean evaluates the Program Chairs in their college, presented per program.
+    /// </summary>
+    private async Task BuildDeanRosterAsync(
+        EvaluationListViewModel model, ApplicationUser dean,
+        EvaluationPeriod period, List<Evaluation> existingEvals)
+    {
+        var chairs = (await GetProgramChairsAsync())
+            .Where(u => u.CollegeId == dean.CollegeId && u.Id != dean.Id)
+            .ToList();
+
+        model.RosterDescription = "Program Chairs under your college, organised per program.";
+        model.Groups = chairs
+            .GroupBy(c => c.Program?.Name ?? "Unassigned program")
+            .OrderBy(g => g.Key)
+            .Select(g => new EvaluationGroupViewModel
+            {
+                GroupName = g.Key,
+                GroupSubtitle = g.First().Program?.Code,
+                Members = g.Select(c => ToRosterEntry(c, existingEvals)).OrderBy(m => m.FacultyName).ToList()
+            })
+            .ToList();
+
+        if (model.Groups.Count == 0)
+            model.StageMessage = "There are no Program Chairs registered under your college.";
+    }
+
+    /// <summary>
+    /// AA-01: the AA account covers Program Chairs who have no designated evaluator.
+    /// </summary>
+    private async Task BuildAaRosterAsync(
+        EvaluationListViewModel model, EvaluationPeriod period, List<Evaluation> existingEvals)
+    {
+        var chairs = (await GetProgramChairsAsync())
+            .Where(u => u.DesignatedEvaluatorId is null)
+            .ToList();
+
+        model.RosterDescription = "Program Chairs with no designated evaluator, organised per college.";
+        model.Groups = chairs
+            .GroupBy(c => c.College?.Name ?? "Unassigned college")
+            .OrderBy(g => g.Key)
+            .Select(g => new EvaluationGroupViewModel
+            {
+                GroupName = g.Key,
+                GroupSubtitle = g.First().College?.Code,
+                Members = g.Select(c => ToRosterEntry(c, existingEvals)).OrderBy(m => m.FacultyName).ToList()
+            })
+            .ToList();
+
+        if (model.Groups.Count == 0)
+            model.StageMessage = "Every Program Chair has a designated evaluator, so there is "
+                               + "nothing for the AA account to evaluate this period.";
+    }
+
+    /// <summary>Active Program Chairs with their College/Program navigations loaded.</summary>
+    private async Task<List<ApplicationUser>> GetProgramChairsAsync()
+    {
+        var chairs = await _userManager.GetUsersInRoleAsync("ProgramChair");
+        var ids = chairs.Where(c => c.IsActive).Select(c => c.Id).ToList();
+
+        // Re-read through the context so College/Program navigations are populated
+        return await _db.Users
+            .Include(u => u.College)
+            .Include(u => u.Program)
+            .Where(u => ids.Contains(u.Id))
+            .ToListAsync();
+    }
+
+    private static FacultyToEvaluateViewModel ToRosterEntry(
+        ApplicationUser user, List<Evaluation> existingEvals)
+    {
+        var myEval = existingEvals.FirstOrDefault(x => x.FacultyId == user.Id);
+        return new FacultyToEvaluateViewModel
+        {
+            FacultyId = user.Id,
+            FacultyName = user.FullName,
+            AlreadyEvaluated = myEval is not null,
+            EvaluationId = myEval?.Id,
+            HomeDepartment = user.Program?.Code ?? user.College?.Code
+        };
     }
 
     [HttpGet]

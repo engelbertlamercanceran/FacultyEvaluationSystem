@@ -124,7 +124,7 @@ public class AdminController : Controller
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Semesters()
     {
-        return View(await _db.Semesters.OrderByDescending(s => s.AcademicYear).ToListAsync());
+        return View(await _db.Semesters.OrderByDescending(s => s.SortKey).ToListAsync());
     }
 
     [Authorize(Roles = "Admin")]
@@ -135,7 +135,9 @@ public class AdminController : Controller
         // Deactivate all
         await _db.Semesters.ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false));
 
-        _db.Semesters.Add(new Semester { AcademicYear = academicYear, Term = term, IsActive = true });
+        var semester = new Semester { AcademicYear = academicYear, Term = term, IsActive = true };
+        semester.RefreshSortKey(); // SUP-01
+        _db.Semesters.Add(semester);
         await _db.SaveChangesAsync();
         TempData["Success"] = "Semester created.";
         return RedirectToAction("Semesters");
@@ -145,8 +147,17 @@ public class AdminController : Controller
     [Authorize(Roles = "AAStaff")]
     public async Task<IActionResult> Periods()
     {
-        var periods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderByDescending(p => p.Id).ToListAsync();
-        ViewBag.Semesters = new SelectList(await _db.Semesters.ToListAsync(), "Id", "DisplayName");
+        var periods = await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id)
+            .ToListAsync();
+
+        ViewBag.Semesters = new SelectList(
+            await _db.Semesters.OrderByDescending(s => s.SortKey).ToListAsync(), "Id", "DisplayName");
+
+        // AAS-03: progress figures so AA Staff can see whether the current
+        // stage is finished before advancing to the next one.
+        ViewBag.Progress = await BuildStageProgressAsync(periods);
         return View(periods);
     }
 
@@ -161,26 +172,79 @@ public class AdminController : Controller
             SemesterId = semesterId,
             StartDate = startDate,
             EndDate = endDate,
-            Status = EvaluationStatus.Pending
+            Stage = EvaluationStage.NotStarted
         });
         await _db.SaveChangesAsync();
         TempData["Success"] = "Evaluation period created.";
         return RedirectToAction("Periods");
     }
 
+    /// <summary>
+    /// AAS-03: AA Staff advances the period one stage at a time — students first,
+    /// then Program Chairs, then Deans, then closed.
+    /// </summary>
     [Authorize(Roles = "AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdatePeriodStatus(int id, EvaluationStatus status)
+    public async Task<IActionResult> AdvancePeriodStage(int id)
     {
         var period = await _db.EvaluationPeriods.FindAsync(id);
-        if (period is not null)
+        if (period is null) return NotFound();
+
+        var next = period.NextStage;
+        if (next is null)
         {
-            period.Status = status;
-            await _db.SaveChangesAsync();
+            TempData["Error"] = "This evaluation period is already closed.";
+            return RedirectToAction("Periods");
         }
+
+        period.Stage = next.Value;
+        var now = DateTime.Now;
+        switch (next.Value)
+        {
+            case EvaluationStage.StudentEvaluation: period.StudentStageOpenedAt = now; break;
+            case EvaluationStage.SupervisorEvaluation: period.SupervisorStageOpenedAt = now; break;
+            case EvaluationStage.DeanEvaluation: period.DeanStageOpenedAt = now; break;
+            case EvaluationStage.Closed: period.ClosedAt = now; break;
+        }
+
+        await _db.SaveChangesAsync();
+
+        // Closing the period computes the results for everyone evaluated in it.
+        if (next.Value == EvaluationStage.Closed)
+            await _evalService.ComputeResultsAsync(period.Id);
+
+        TempData["Success"] = $"Evaluation period is now at stage: {EvaluationPeriod.StageLabel(next.Value)}.";
         return RedirectToAction("Periods");
     }
+
+    /// <summary>Counts of submitted vs expected evaluations for the stage each period is in.</summary>
+    private async Task<Dictionary<int, StageProgress>> BuildStageProgressAsync(List<EvaluationPeriod> periods)
+    {
+        var progress = new Dictionary<int, StageProgress>();
+
+        foreach (var period in periods)
+        {
+            var submitted = await _db.Evaluations
+                .CountAsync(e => e.EvaluationPeriodId == period.Id
+                              && e.EvaluatorType == (period.Stage == EvaluationStage.StudentEvaluation
+                                    ? "Student" : "Supervisor"));
+
+            int expected = period.Stage switch
+            {
+                // One evaluation per enrolled student per class they are taking.
+                EvaluationStage.StudentEvaluation => await _db.StudentEnrollments
+                    .CountAsync(se => se.FacultySubject.SemesterId == period.SemesterId),
+                _ => 0
+            };
+
+            progress[period.Id] = new StageProgress(submitted, expected);
+        }
+
+        return progress;
+    }
+
+    public record StageProgress(int Submitted, int Expected);
 
     // --- Faculty-Subject Assignment ---
     public async Task<IActionResult> Subjects()
@@ -190,6 +254,7 @@ public class AdminController : Controller
             ? await _db.FacultySubjects
                 .Include(fs => fs.Faculty)
                 .Include(fs => fs.Semester)
+                .Include(fs => fs.Program).ThenInclude(p => p!.College)
                 .Where(fs => fs.SemesterId == activeSemester.Id)
                 .ToListAsync()
             : [];
@@ -197,12 +262,17 @@ public class AdminController : Controller
         ViewBag.ActiveSemester = activeSemester;
         var faculty = await _userManager.GetUsersInRoleAsync("Faculty");
         ViewBag.Faculty = new SelectList(faculty.Where(f => f.IsActive), "Id", "FullName");
+
+        // SUP-02: the owning program must be recorded against each course
+        ViewBag.Programs = new SelectList(
+            await _db.AcademicPrograms.Include(p => p.College).OrderBy(p => p.Code).ToListAsync(),
+            "Id", "Code");
         return View(subjects);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateSubject(string facultyId, string subjectCode, string subjectName, string? section)
+    public async Task<IActionResult> CreateSubject(string facultyId, string subjectCode, string subjectName, string? section, int? programId)
     {
         var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
         if (activeSemester is null)
@@ -217,7 +287,8 @@ public class AdminController : Controller
             SemesterId = activeSemester.Id,
             SubjectCode = subjectCode,
             SubjectName = subjectName,
-            Section = section
+            Section = section,
+            ProgramId = programId
         });
         await _db.SaveChangesAsync();
         TempData["Success"] = "Subject assigned.";

@@ -1,10 +1,18 @@
-@model List<FacultyEvalSystem.Models.EvaluationResult>
+@using FacultyEvalSystem.Models
+@model List<EvaluationResult>
 @{
-    ViewData["Title"] = "Faculty Development Plans";
-    var periods = (List<FacultyEvalSystem.Models.EvaluationPeriod>)ViewBag.Periods;
+    ViewData["Title"] = "Development Plans";
+    var periods = (List<EvaluationPeriod>)ViewBag.Periods;
     var selectedPeriodId = (int?)ViewBag.SelectedPeriodId;
-    var plans = (Dictionary<string, FacultyEvalSystem.Models.DevelopmentPlan>)ViewBag.Plans;
-    var isProgramChair = User.IsInRole("ProgramChair");
+    var plans = (Dictionary<string, DevelopmentPlan>)ViewBag.Plans;
+
+    var isDean = User.IsInRole("Dean");
+    var isAa = User.IsInRole("AA");
+    var rosterLabel = isDean
+        ? "Program Chairs under your college"
+        : isAa
+            ? "Program Chairs with no designated evaluator"
+            : "Faculty teaching in your program";
 }
 
 <div class="card mb-3">
@@ -24,63 +32,41 @@
 @if (Model.Any())
 {
     <div class="card">
-        <div class="card-header">Faculty in Your College (@Model.Count)</div>
+        <div class="card-header">@rosterLabel (@Model.Count)</div>
         <div class="card-body p-0">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Faculty Name</th>
+                        <th>Name</th>
+                        <th>Department</th>
                         <th class="text-center">SET Rating</th>
                         <th class="text-center">SEF Rating</th>
-                        @if (isProgramChair)
-                        {
-                            <th class="text-center">Faculty Input</th>
-                            <th class="text-center">Supervisor Input</th>
-                        }
-                        <th>Action</th>
+                        <th class="text-center">FEDAF Status</th>
+                        <th class="text-end">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var r in Model)
                     {
                         var plan = plans.GetValueOrDefault(r.FacultyId);
+                        var status = plan?.Status ?? FedafStatus.Draft;
                         <tr>
                             <td>@r.Faculty.FullName</td>
+                            <td><small class="text-muted">@(r.Faculty.Program?.Code ?? r.Faculty.College?.Code ?? "—")</small></td>
                             <td class="text-center"><strong>@r.StudentRating.ToString("F2")</strong></td>
                             <td class="text-center"><strong>@r.SupervisorRating.ToString("F2")</strong></td>
-                            @if (isProgramChair)
-                            {
-                                <td class="text-center">
-                                    @if (plan?.FacultySubmittedAt != null)
-                                    {
-                                        <span class="badge bg-success">Submitted</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary">Pending</span>
-                                    }
-                                </td>
-                                <td class="text-center">
-                                    @if (plan?.SupervisorSubmittedAt != null)
-                                    {
-                                        <span class="badge bg-success">Done</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-warning">Pending</span>
-                                    }
-                                </td>
-                            }
-                            <td>
-                                @if (isProgramChair)
+                            <td class="text-center">
+                                <span class="badge @DevelopmentPlan.StatusBadgeClass(status)">@DevelopmentPlan.StatusLabel(status)</span>
+                                @if (plan?.AcknowledgedAt != null)
                                 {
-                                    <a asp-action="Review" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
-                                       class="btn btn-outline-primary btn-sm">Review & Plan</a>
+                                    <br /><small class="text-muted">@plan.AcknowledgedAt.Value.ToString("MMM dd, yyyy")</small>
                                 }
-                                <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
-                                   class="btn btn-outline-secondary btn-sm">IFER</a>
-                                <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
-                                   class="btn btn-outline-info btn-sm">FEDAF</a>
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Review" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
+                                   class="btn btn-outline-primary btn-sm">
+                                    @(status == FedafStatus.Draft ? "Enter Development Plan" : "Review & Plan")
+                                </a>
                             </td>
                         </tr>
                     }
@@ -91,5 +77,7 @@
 }
 else
 {
-    <div class="alert alert-info">No evaluation results found for this period in your college.</div>
+    <div class="alert alert-info">
+        No evaluation results found for this period among @rosterLabel.ToLower().
+    </div>
 }

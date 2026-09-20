@@ -1,8 +1,23 @@
-@model List<FacultyEvalSystem.Models.EvaluationPeriod>
-@{ ViewData["Title"] = "Evaluation Periods"; }
+@using FacultyEvalSystem.Models
+@model List<EvaluationPeriod>
+@{
+    ViewData["Title"] = "Evaluation Schedule";
+    var progress = ViewBag.Progress as Dictionary<int, FacultyEvalSystem.Controllers.AdminController.StageProgress>
+                   ?? new Dictionary<int, FacultyEvalSystem.Controllers.AdminController.StageProgress>();
+
+    string StageBadge(EvaluationStage s) => s switch
+    {
+        EvaluationStage.NotStarted => "bg-secondary",
+        EvaluationStage.StudentEvaluation => "bg-primary",
+        EvaluationStage.SupervisorEvaluation => "bg-info text-dark",
+        EvaluationStage.DeanEvaluation => "bg-warning text-dark",
+        EvaluationStage.Closed => "bg-dark",
+        _ => "bg-secondary"
+    };
+}
 
 <div class="row">
-    <div class="col-md-5">
+    <div class="col-md-4">
         <div class="card mb-3">
             <div class="card-header">Create Evaluation Period</div>
             <div class="card-body">
@@ -29,46 +44,108 @@
                 </form>
             </div>
         </div>
+
+        <div class="card">
+            <div class="card-header">How the stages work</div>
+            <div class="card-body" style="font-size:13px;">
+                <p class="text-muted mb-2">
+                    An evaluation period runs one stage at a time. You decide when each stage begins.
+                </p>
+                <ol class="ps-3 mb-2">
+                    <li><strong>Student Evaluation</strong> — students evaluate the faculty who teach them.</li>
+                    <li><strong>Supervisor Evaluation</strong> — Program Chairs evaluate faculty teaching in their program.</li>
+                    <li><strong>Dean Evaluation</strong> — Deans evaluate their Program Chairs.</li>
+                    <li><strong>Closed</strong> — no further submissions; results are computed automatically.</li>
+                </ol>
+                <p class="text-muted mb-0">
+                    Opening a stage closes the one before it.
+                </p>
+            </div>
+        </div>
     </div>
-    <div class="col-md-7">
+
+    <div class="col-md-8">
         <div class="card">
             <div class="card-header">Evaluation Periods</div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead><tr><th>Name</th><th>Semester</th><th>Dates</th><th>Status</th><th>Actions</th></tr></thead>
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>Semester</th>
+                            <th>Current Stage</th>
+                            <th>Submitted</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
                     <tbody>
+                        @if (Model.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-4">No evaluation periods yet.</td></tr>
+                        }
                         @foreach (var p in Model)
                         {
+                            var prog = progress.TryGetValue(p.Id, out var pr) ? pr : null;
                             <tr>
-                                <td>@p.Name</td>
-                                <td>@p.Semester.DisplayName</td>
-                                <td>@p.StartDate.ToString("MMM dd") - @p.EndDate.ToString("MMM dd")</td>
                                 <td>
-                                    <span class="badge bg-@(p.Status == FacultyEvalSystem.Models.EvaluationStatus.Open ? "success" : p.Status == FacultyEvalSystem.Models.EvaluationStatus.Closed ? "danger" : "warning")">
-                                        @p.Status
-                                    </span>
+                                    <strong>@p.Name</strong><br />
+                                    <small class="text-muted">@p.StartDate.ToString("MMM dd") &ndash; @p.EndDate.ToString("MMM dd, yyyy")</small>
+                                </td>
+                                <td><small>@p.Semester.DisplayName</small></td>
+                                <td>
+                                    <span class="badge @StageBadge(p.Stage)">@p.StageName</span>
+                                    @if (p.Stage == EvaluationStage.StudentEvaluation && p.StudentStageOpenedAt.HasValue)
+                                    {
+                                        <br /><small class="text-muted">since @p.StudentStageOpenedAt.Value.ToString("MMM dd")</small>
+                                    }
+                                    else if (p.Stage == EvaluationStage.SupervisorEvaluation && p.SupervisorStageOpenedAt.HasValue)
+                                    {
+                                        <br /><small class="text-muted">since @p.SupervisorStageOpenedAt.Value.ToString("MMM dd")</small>
+                                    }
+                                    else if (p.Stage == EvaluationStage.DeanEvaluation && p.DeanStageOpenedAt.HasValue)
+                                    {
+                                        <br /><small class="text-muted">since @p.DeanStageOpenedAt.Value.ToString("MMM dd")</small>
+                                    }
+                                    else if (p.IsClosed && p.ClosedAt.HasValue)
+                                    {
+                                        <br /><small class="text-muted">on @p.ClosedAt.Value.ToString("MMM dd")</small>
+                                    }
                                 </td>
                                 <td>
-                                    @if (p.Status != FacultyEvalSystem.Models.EvaluationStatus.Open)
+                                    @if (prog is not null && p.IsActive)
                                     {
-                                        <form asp-action="UpdatePeriodStatus" method="post" style="display:inline;">
+                                        <span>@prog.Submitted</span>
+                                        @if (prog.Expected > 0)
+                                        {
+                                            <span class="text-muted"> / @prog.Expected</span>
+                                            var pct = prog.Expected > 0 ? (int)Math.Round(100.0 * prog.Submitted / prog.Expected) : 0;
+                                            <div class="progress mt-1" style="height:5px; width:90px;">
+                                                <div class="progress-bar bg-success" style="width:@(Math.Min(pct, 100))%"></div>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">&mdash;</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    @if (p.NextStage is not null)
+                                    {
+                                        var next = p.NextStage.Value;
+                                        var isClosing = next == EvaluationStage.Closed;
+                                        <form asp-action="AdvancePeriodStage" method="post" style="display:inline;"
+                                              onsubmit="return confirm('@(isClosing ? "Close this evaluation period? Results will be computed and no further submissions will be accepted." : $"Open the {EvaluationPeriod.StageLabel(next)} stage? The current stage will close.")');">
                                             <input type="hidden" name="id" value="@p.Id" />
-                                            <input type="hidden" name="status" value="@FacultyEvalSystem.Models.EvaluationStatus.Open" />
-                                            <button type="submit" class="btn btn-success btn-sm">Open</button>
+                                            <button type="submit" class="btn btn-sm @(isClosing ? "btn-danger" : "btn-success")">
+                                                @(isClosing ? "Close Period" : $"Open {EvaluationPeriod.StageLabel(next)}")
+                                            </button>
                                         </form>
                                     }
-                                    @if (p.Status != FacultyEvalSystem.Models.EvaluationStatus.Closed)
+                                    else
                                     {
-                                        <form asp-action="UpdatePeriodStatus" method="post" style="display:inline;">
-                                            <input type="hidden" name="id" value="@p.Id" />
-                                            <input type="hidden" name="status" value="@FacultyEvalSystem.Models.EvaluationStatus.Closed" />
-                                            <button type="submit" class="btn btn-danger btn-sm">Close</button>
-                                        </form>
+                                        <span class="text-muted small">Completed</span>
                                     }
-                                    <form asp-action="ComputeResults" method="post" style="display:inline;">
-                                        <input type="hidden" name="periodId" value="@p.Id" />
-                                        <button type="submit" class="btn btn-outline-primary btn-sm">Compute</button>
-                                    </form>
                                 </td>
                             </tr>
                         }

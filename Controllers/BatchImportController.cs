@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -381,9 +381,9 @@ public class BatchImportController : Controller
         if (!_db.Semesters.Any())
         {
             _db.Semesters.AddRange(
-                new Semester { AcademicYear = "2024-2025", Term = "1st Semester", IsActive = false },
-                new Semester { AcademicYear = "2024-2025", Term = "2nd Semester", IsActive = false },
-                new Semester { AcademicYear = "2025-2026", Term = "1st Semester", IsActive = true }
+                new Semester { AcademicYear = "2024-2025", Term = "1st Semester", IsActive = false, SortKey = Semester.ComputeSortKey("2024-2025", "1st Semester") },
+                new Semester { AcademicYear = "2024-2025", Term = "2nd Semester", IsActive = false, SortKey = Semester.ComputeSortKey("2024-2025", "2nd Semester") },
+                new Semester { AcademicYear = "2025-2026", Term = "1st Semester", IsActive = true, SortKey = Semester.ComputeSortKey("2025-2026", "1st Semester") }
             );
             await _db.SaveChangesAsync();
         }
@@ -438,9 +438,9 @@ public class BatchImportController : Controller
         var periodsToCreate = new List<EvaluationPeriod>();
         if (!_db.EvaluationPeriods.Any())
         {
-            periodsToCreate.Add(new EvaluationPeriod { Name = "Midterm Evaluation", SemesterId = semesters[0].Id, StartDate = new DateTime(2024, 10, 1), EndDate = new DateTime(2024, 10, 15), Status = EvaluationStatus.Closed });
-            periodsToCreate.Add(new EvaluationPeriod { Name = "Final Evaluation", SemesterId = semesters[1].Id, StartDate = new DateTime(2025, 3, 1), EndDate = new DateTime(2025, 3, 15), Status = EvaluationStatus.Closed });
-            periodsToCreate.Add(new EvaluationPeriod { Name = "Midterm Evaluation", SemesterId = semesters[2].Id, StartDate = new DateTime(2025, 10, 1), EndDate = new DateTime(2025, 12, 31), Status = EvaluationStatus.Open });
+            periodsToCreate.Add(new EvaluationPeriod { Name = "Midterm Evaluation", SemesterId = semesters[0].Id, StartDate = new DateTime(2024, 10, 1), EndDate = new DateTime(2024, 10, 15), Stage = EvaluationStage.Closed, ClosedAt = new DateTime(2024, 10, 16) });
+            periodsToCreate.Add(new EvaluationPeriod { Name = "Final Evaluation", SemesterId = semesters[1].Id, StartDate = new DateTime(2025, 3, 1), EndDate = new DateTime(2025, 3, 15), Stage = EvaluationStage.Closed, ClosedAt = new DateTime(2025, 3, 16) });
+            periodsToCreate.Add(new EvaluationPeriod { Name = "Midterm Evaluation", SemesterId = semesters[2].Id, StartDate = new DateTime(2025, 10, 1), EndDate = new DateTime(2025, 12, 31), Stage = EvaluationStage.StudentEvaluation, StudentStageOpenedAt = new DateTime(2025, 10, 1) });
             _db.EvaluationPeriods.AddRange(periodsToCreate);
             await _db.SaveChangesAsync();
         }

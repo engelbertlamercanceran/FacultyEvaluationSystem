@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -26,11 +26,22 @@ public class ReportsController : Controller
         _userManager = userManager;
     }
 
+    /// <summary>
+    /// PC-03: a preview renders in the browser; otherwise the file downloads.
+    /// </summary>
+    private FileContentResult PdfResult(byte[] bytes, string fileName, bool preview)
+    {
+        if (!preview) return File(bytes, "application/pdf", fileName);
+
+        Response.Headers.ContentDisposition = $"inline; filename=\"{fileName}\"";
+        return File(bytes, "application/pdf");
+    }
+
     // Generate Individual Faculty Evaluation Report (IFER) PDF
     // Per CHED CMO No. 19, Series of 2025 - Annex C
     [HttpGet]
-    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA")]
-    public async Task<IActionResult> IFER(int periodId, string? facultyId)
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA,AA")]
+    public async Task<IActionResult> IFER(int periodId, string? facultyId, bool preview = false)
     {
         // Faculty can only view their own
         if (User.IsInRole("Faculty"))
@@ -200,14 +211,14 @@ public class ReportsController : Controller
         });
 
         var bytes = pdf.GeneratePdf();
-        return File(bytes, "application/pdf", $"IFER_{result.Faculty.LastName}_{result.EvaluationPeriod.Semester.AcademicYear}.pdf");
+        return PdfResult(bytes, $"IFER_{result.Faculty.LastName}_{result.EvaluationPeriod.Semester.AcademicYear}.pdf", preview);
     }
 
     // Generate Faculty Evaluation and Development Acknowledgement Form (FEDAF) PDF
     // Per CHED CMO No. 19, Series of 2025 - Annex D
     [HttpGet]
-    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA")]
-    public async Task<IActionResult> FEDAF(int periodId, string? facultyId)
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA,AA")]
+    public async Task<IActionResult> FEDAF(int periodId, string? facultyId, bool preview = false)
     {
         if (User.IsInRole("Faculty"))
             facultyId = _userManager.GetUserId(User);
@@ -389,7 +400,7 @@ public class ReportsController : Controller
         });
 
         var bytes = pdf.GeneratePdf();
-        return File(bytes, "application/pdf", $"FEDAF_{result.Faculty.LastName}_{result.EvaluationPeriod.Semester.AcademicYear}.pdf");
+        return PdfResult(bytes, $"FEDAF_{result.Faculty.LastName}_{result.EvaluationPeriod.Semester.AcademicYear}.pdf", preview);
     }
 
     // Generate summary report for all faculty in a period

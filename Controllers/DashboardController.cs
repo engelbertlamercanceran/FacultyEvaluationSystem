@@ -30,7 +30,7 @@ public class DashboardController : Controller
         var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
         var activePeriod = await _db.EvaluationPeriods
             .Include(p => p.Semester)
-            .FirstOrDefaultAsync(p => p.Status == EvaluationStatus.Open);
+            .FirstOrDefaultAsync(p => p.Stage != EvaluationStage.NotStarted && p.Stage != EvaluationStage.Closed);
 
         var latestPeriod = activePeriod ?? await _db.EvaluationPeriods
             .OrderByDescending(p => p.Id)

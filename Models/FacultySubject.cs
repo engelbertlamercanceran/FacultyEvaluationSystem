@@ -22,6 +22,18 @@ public class FacultySubject
     [MaxLength(20)]
     public string? Section { get; set; }
 
+    // SUP-02: which program owns this course. Required by PC-01 so a Program
+    // Chair can be shown faculty from other departments who teach courses
+    // within their program. Nullable: assignments imported before the
+    // Teaching Memo carried a program code have none.
+    public int? ProgramId { get; set; }
+    public AcademicProgram? Program { get; set; }
+
+    // AAS-01: the Teaching Memo this assignment came from, kept so an
+    // assignment can be traced back to the document that authorised it.
+    [MaxLength(50)]
+    public string? TeachingMemoNumber { get; set; }
+
     public List<StudentEnrollment> Enrollments { get; set; } = [];
 }
 

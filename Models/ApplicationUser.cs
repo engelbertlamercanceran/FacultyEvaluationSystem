@@ -25,5 +25,11 @@ public class ApplicationUser : IdentityUser
 
     public bool IsActive { get; set; } = true;
 
+    // AA-01: the supervisor designated to evaluate this user. Meaningful for
+    // Program Chairs (normally their Dean). A Program Chair with no designated
+    // evaluator is handled by the AA account instead.
+    public string? DesignatedEvaluatorId { get; set; }
+    public ApplicationUser? DesignatedEvaluator { get; set; }
+
     public string FullName => $"{FirstName} {LastName}";
 }

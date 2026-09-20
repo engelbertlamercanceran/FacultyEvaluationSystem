@@ -1,0 +1,38 @@
+@using FacultyEvalSystem.ViewModels
+@model (FacultyToEvaluateViewModel Entry, int PeriodId)
+@{
+    var f = Model.Entry;
+}
+<tr>
+    <td>
+        @f.FacultyName
+        @if (!string.IsNullOrEmpty(f.HomeDepartment))
+        {
+            <span class="badge bg-light text-dark border ms-2">@f.HomeDepartment</span>
+        }
+    </td>
+    <td>
+        @if (f.AlreadyEvaluated)
+        {
+            <span class="badge bg-success">Completed</span>
+        }
+        else
+        {
+            <span class="badge bg-warning text-dark">Pending</span>
+        }
+    </td>
+    <td class="text-end">
+        @if (!f.AlreadyEvaluated)
+        {
+            <a asp-controller="Evaluation" asp-action="Evaluate"
+               asp-route-facultyId="@f.FacultyId"
+               asp-route-periodId="@Model.PeriodId"
+               class="btn btn-primary btn-sm">Evaluate</a>
+        }
+        else
+        {
+            <button type="button" class="btn btn-outline-primary btn-sm btn-view-rating"
+                    data-eval-id="@f.EvaluationId">View My Rating</button>
+        }
+    </td>
+</tr>

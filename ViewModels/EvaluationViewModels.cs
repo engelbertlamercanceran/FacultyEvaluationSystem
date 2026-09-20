@@ -47,10 +47,37 @@ public class FacultyToEvaluateViewModel
     public int? EvaluationId { get; set; }
     public double? CurrentRating { get; set; }
     public string? DescriptiveRating { get; set; }
+
+    // PC-01: the courses this faculty member teaches within the evaluating
+    // Chair's program — shown so the Chair knows why the person is on the list.
+    public List<string> CoursesInProgram { get; set; } = [];
+
+    // PC-01: true when the faculty member's home department differs from the
+    // program whose Chair is evaluating them.
+    public bool IsFromAnotherDepartment { get; set; }
+    public string? HomeDepartment { get; set; }
+}
+
+/// <summary>DN-01: Deans see Program Chairs organised per program.</summary>
+public class EvaluationGroupViewModel
+{
+    public string GroupName { get; set; } = "";
+    public string? GroupSubtitle { get; set; }
+    public List<FacultyToEvaluateViewModel> Members { get; set; } = [];
 }
 
 public class EvaluationListViewModel
 {
     public EvaluationPeriod? ActivePeriod { get; set; }
     public List<FacultyToEvaluateViewModel> FacultyList { get; set; } = [];
+
+    /// <summary>Set when the list should be presented in groups (DN-01).</summary>
+    public List<EvaluationGroupViewModel> Groups { get; set; } = [];
+    public bool IsGrouped => Groups.Count > 0;
+
+    /// <summary>Heading describing who the signed-in evaluator is responsible for.</summary>
+    public string? RosterDescription { get; set; }
+
+    /// <summary>Shown when the period exists but this evaluator's stage is not open yet.</summary>
+    public string? StageMessage { get; set; }
 }

@@ -65,6 +65,9 @@ namespace FacultyEvalSystem.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DesignatedEvaluatorId")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -133,6 +136,8 @@ namespace FacultyEvalSystem.Migrations
 
                     b.HasIndex("CollegeId");
 
+                    b.HasIndex("DesignatedEvaluatorId");
+
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
 
@@ -177,6 +182,13 @@ namespace FacultyEvalSystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AcknowledgedById")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("ActionPlan")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -198,6 +210,10 @@ namespace FacultyEvalSystem.Migrations
                     b.Property<string>("ProposedActivities")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("SupervisorId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime?>("SupervisorSubmittedAt")
                         .HasColumnType("datetime2");
@@ -320,6 +336,12 @@ namespace FacultyEvalSystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeanStageOpenedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
 
@@ -331,11 +353,17 @@ namespace FacultyEvalSystem.Migrations
                     b.Property<int>("SemesterId")
                         .HasColumnType("int");
 
+                    b.Property<int>("Stage")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<DateTime?>("StudentStageOpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SupervisorStageOpenedAt")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -432,6 +460,9 @@ namespace FacultyEvalSystem.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<int?>("ProgramId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Section")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -449,9 +480,15 @@ namespace FacultyEvalSystem.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("TeachingMemoNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FacultyId");
+
+                    b.HasIndex("ProgramId");
 
                     b.HasIndex("SemesterId");
 
@@ -474,12 +511,17 @@ namespace FacultyEvalSystem.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<int>("SortKey")
+                        .HasColumnType("int");
+
                     b.Property<string>("Term")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SortKey");
 
                     b.ToTable("Semesters");
                 });
@@ -658,11 +700,18 @@ namespace FacultyEvalSystem.Migrations
                         .WithMany()
                         .HasForeignKey("CollegeId");
 
+                    b.HasOne("FacultyEvalSystem.Models.ApplicationUser", "DesignatedEvaluator")
+                        .WithMany()
+                        .HasForeignKey("DesignatedEvaluatorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("FacultyEvalSystem.Models.AcademicProgram", "Program")
                         .WithMany()
                         .HasForeignKey("ProgramId");
 
                     b.Navigation("College");
+
+                    b.Navigation("DesignatedEvaluator");
 
                     b.Navigation("Program");
                 });
@@ -787,6 +836,11 @@ namespace FacultyEvalSystem.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("FacultyEvalSystem.Models.AcademicProgram", "Program")
+                        .WithMany()
+                        .HasForeignKey("ProgramId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FacultyEvalSystem.Models.Semester", "Semester")
                         .WithMany()
                         .HasForeignKey("SemesterId")
@@ -794,6 +848,8 @@ namespace FacultyEvalSystem.Migrations
                         .IsRequired();
 
                     b.Navigation("Faculty");
+
+                    b.Navigation("Program");
 
                     b.Navigation("Semester");
                 });

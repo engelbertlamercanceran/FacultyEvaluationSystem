@@ -1,19 +1,73 @@
-@model List<FacultyEvalSystem.Models.EvaluationResult>
+@using FacultyEvalSystem.Models
+@model List<EvaluationResult>
 @{
-    ViewData["Title"] = "My Reports & Development Plan";
-    var plans = (Dictionary<int, FacultyEvalSystem.Models.DevelopmentPlan>)ViewBag.Plans;
+    ViewData["Title"] = "My Reports & FEDAF";
+    var plans = (Dictionary<int, DevelopmentPlan>)ViewBag.Plans;
+    var semesters = ViewBag.Semesters as List<Semester> ?? [];
+    var search = ViewBag.Search as string;
+    var selectedSemesterId = ViewBag.SelectedSemesterId as int?;
+    var defaultedToLatest = ViewBag.DefaultedToLatest as bool? ?? false;
+    var latestSemester = ViewBag.LatestSemester as Semester;
+    var totalRecords = ViewBag.TotalRecords as int? ?? 0;
 }
 
-<p class="text-muted mb-3">View your evaluation reports and submit your development plan for each evaluation period.</p>
+@* FC-04: search bar for past semesters *@
+<div class="card mb-3">
+    <div class="card-body py-3">
+        <form asp-action="Index" method="get" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small text-muted mb-1">Search past semesters</label>
+                <input name="search" value="@search" class="form-control form-control-sm"
+                       placeholder="e.g. 2024-2025, 1st Semester, Midterm" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Or jump to a semester</label>
+                <select name="semesterId" class="form-select form-select-sm">
+                    <option value="">All semesters</option>
+                    @foreach (var s in semesters)
+                    {
+                        <option value="@s.Id" selected="@(selectedSemesterId == s.Id)">@s.DisplayName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                @if (!string.IsNullOrWhiteSpace(search) || selectedSemesterId.HasValue)
+                {
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Reset</a>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+@* FC-03: opens on the most recent semester *@
+@if (defaultedToLatest && latestSemester is not null && totalRecords > Model.Count)
+{
+    <div class="alert alert-light border small py-2 d-flex justify-content-between align-items-center">
+        <span>
+            Showing your most recent semester (<strong>@latestSemester.DisplayName</strong>).
+            You have @totalRecords record@(totalRecords == 1 ? "" : "s") in total.
+        </span>
+        <a asp-action="Index" asp-route-semesterId="" class="btn btn-outline-secondary btn-sm">Show all semesters</a>
+    </div>
+}
 
 @if (!Model.Any())
 {
-    <div class="alert alert-info">No evaluation results available yet.</div>
+    <div class="alert alert-info">
+        @(totalRecords == 0
+            ? "No evaluation results available yet."
+            : "No records match your search. Try a different semester or reset the filter.")
+    </div>
 }
 
 @foreach (var r in Model)
 {
     var plan = plans.GetValueOrDefault(r.EvaluationPeriodId);
+    var status = plan?.Status ?? FedafStatus.Draft;
+    var canAcknowledge = plan is not null && status == FedafStatus.DevelopmentPlanEntered;
+
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
@@ -43,86 +97,123 @@
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="d-flex gap-2 mb-3 align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="showPreview('@Url.Action("IFER", "Reports", new { periodId = r.EvaluationPeriodId, preview = true })', 'IFER')">
+                    View IFER
+                </button>
+                <button type="button" class="btn btn-outline-info btn-sm"
+                        onclick="showPreview('@Url.Action("FEDAF", "Reports", new { periodId = r.EvaluationPeriodId, preview = true })', 'FEDAF')">
+                    View FEDAF
+                </button>
                 <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId"
-                   class="btn btn-outline-secondary btn-sm">Download IFER PDF</a>
+                   class="btn btn-link btn-sm text-muted">Download IFER</a>
                 <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@r.EvaluationPeriodId"
-                   class="btn btn-outline-info btn-sm">Download FEDAF PDF</a>
+                   class="btn btn-link btn-sm text-muted">Download FEDAF</a>
+                <span class="ms-auto">
+                    <small class="text-muted me-1">FEDAF status:</small>
+                    <span class="badge @DevelopmentPlan.StatusBadgeClass(status)">@DevelopmentPlan.StatusLabel(status)</span>
+                </span>
             </div>
 
-            <hr/>
+            <hr />
 
-            <h6>Development Plan (FEDAF Section C)</h6>
-
-            @{ var isClosed = r.EvaluationPeriod.Status == FacultyEvalSystem.Models.EvaluationStatus.Closed; }
-            @if (isClosed)
-            {
-                <div class="alert alert-secondary small py-2 mb-2">This evaluation period is closed. Development plans are read-only.</div>
-            }
-
-            <div class="row">
+            @* FC-01: read-only. The Development Plan is entered by the supervisor (PC-02). *@
+            <h6>Development Plan (to be jointly accomplished by the Supervisor and Faculty)</h6>
+            <div class="row g-2 mb-3">
                 <div class="col-md-4">
-                    <div class="card @(plan?.FacultySubmittedAt != null ? "border-success" : "border-warning")">
-                        <div class="card-header small">
-                            Areas for Improvement
-                            <span class="badge @(plan?.FacultySubmittedAt != null ? "bg-success" : "bg-warning") float-end">
-                                @(plan?.FacultySubmittedAt != null ? "Submitted" : "Pending")
-                            </span>
-                        </div>
-                        <div class="card-body">
-                            @if (isClosed)
-                            {
-                                <div class="form-control form-control-sm bg-light" style="min-height:100px;">
-                                    @(plan?.AreasForImprovement ?? "Not submitted.")
-                                </div>
-                            }
-                            else
-                            {
-                            <form asp-action="Edit" method="post">
-                                <input type="hidden" name="evaluationPeriodId" value="@r.EvaluationPeriodId" />
-                                <textarea name="areasForImprovement" class="form-control form-control-sm mb-2" rows="4"
-                                          placeholder="Identify areas where you can improve...">@(plan?.AreasForImprovement)</textarea>
-                                <button type="submit" class="btn btn-primary btn-sm w-100">Save</button>
-                            </form>
-                            }
-                            @if (plan?.FacultySubmittedAt != null)
-                            {
-                                <small class="text-muted d-block mt-1">Last saved: @plan.FacultySubmittedAt.Value.ToString("MMM dd, yyyy hh:mm tt")</small>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-header small">
-                            Proposed Activities
-                            <span class="badge @(plan?.SupervisorSubmittedAt != null ? "bg-success" : "bg-secondary") float-end">
-                                @(plan?.SupervisorSubmittedAt != null ? "Provided" : "Awaiting Supervisor")
-                            </span>
-                        </div>
+                    <div class="card h-100">
+                        <div class="card-header small">Areas for Improvement</div>
                         <div class="card-body">
                             <div class="form-control form-control-sm bg-light" style="min-height:100px;">
-                                @(plan?.ProposedActivities ?? "Your supervisor will fill this in.")
+                                @(plan?.AreasForImprovement ?? "Your supervisor will complete this.")
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-header small">
-                            Action Plan
-                            <span class="badge @(plan?.SupervisorSubmittedAt != null ? "bg-success" : "bg-secondary") float-end">
-                                @(plan?.SupervisorSubmittedAt != null ? "Provided" : "Awaiting Supervisor")
-                            </span>
-                        </div>
+                    <div class="card h-100">
+                        <div class="card-header small">Proposed Learning and Development Activities</div>
                         <div class="card-body">
                             <div class="form-control form-control-sm bg-light" style="min-height:100px;">
-                                @(plan?.ActionPlan ?? "Your supervisor will fill this in.")
+                                @(plan?.ProposedActivities ?? "Your supervisor will complete this.")
                             </div>
                         </div>
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header small">Action Plan</div>
+                        <div class="card-body">
+                            <div class="form-control form-control-sm bg-light" style="min-height:100px;">
+                                @(plan?.ActionPlan ?? "Your supervisor will complete this.")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* FC-02: acknowledgement replaces the old Save button *@
+            <div class="border rounded p-3 bg-light">
+                @if (plan is not null && plan.IsAcknowledged)
+                {
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-success">Acknowledged</span>
+                            <small class="text-muted ms-2">
+                                You acknowledged this FEDAF on @plan.AcknowledgedAt!.Value.ToString("MMMM dd, yyyy 'at' hh:mm tt").
+                            </small>
+                        </div>
+                    </div>
+                }
+                else if (canAcknowledge)
+                {
+                    <p class="small fst-italic text-muted mb-2">
+                        I acknowledge that I have received and reviewed the faculty evaluation conducted for the
+                        period mentioned above. I understand that my acknowledgement below does not necessarily
+                        indicate agreement with the evaluation but confirms that I have been given the
+                        opportunity to discuss it with my supervisor.
+                    </p>
+                    <form asp-action="Acknowledge" method="post"
+                          onsubmit="return confirm('Acknowledge this FEDAF? This records the date and cannot be undone.');">
+                        <input type="hidden" name="evaluationPeriodId" value="@r.EvaluationPeriodId" />
+                        <button type="submit" class="btn btn-primary btn-sm">Acknowledge</button>
+                    </form>
+                }
+                else
+                {
+                    <small class="text-muted">
+                        This FEDAF is not ready for acknowledgement yet &mdash; your supervisor has not
+                        completed the Development Plan.
+                    </small>
+                }
             </div>
         </div>
     </div>
+}
+
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="height:90vh;">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="previewTitle">Preview</h6>
+                <a id="previewDownload" href="#" class="btn btn-sm btn-primary ms-auto me-2">Download</a>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="previewFrame" src="" style="width:100%; height:100%; border:0;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function showPreview(url, label) {
+            document.getElementById('previewTitle').textContent = label + ' Preview';
+            document.getElementById('previewFrame').src = url;
+            document.getElementById('previewDownload').href = url.replace(/preview=(True|true)/, 'preview=false');
+            new bootstrap.Modal(document.getElementById('previewModal')).show();
+        }
+    </script>
 }
