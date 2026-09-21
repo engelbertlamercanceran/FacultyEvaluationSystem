@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Data;
 using FacultyEvalSystem.Models;
@@ -34,6 +34,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 // Services
 builder.Services.AddScoped<EvaluationService>();
 builder.Services.AddScoped<EvaluatorAssignmentService>();
+builder.Services.AddScoped<DemoDataSeeder>();
 
 builder.Services.AddControllersWithViews();
 
