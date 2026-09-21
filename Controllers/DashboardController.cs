@@ -37,6 +37,22 @@ public class DashboardController : Controller
         return rated.Count > 0 ? Math.Round(rated.Average(r => r.StudentRating), 2) : null;
     }
 
+    /// <summary>
+    /// The most recent evaluation period that actually holds computed results.
+    ///
+    /// Results are only computed when AA Staff closes a period (AAS-03), so the
+    /// period currently being evaluated has none. Anything that reports on results
+    /// must use this rather than the active or highest-numbered period, or it
+    /// renders empty for the entire duration of an evaluation.
+    /// </summary>
+    private async Task<EvaluationPeriod?> GetLatestPeriodWithResultsAsync()
+        => await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .Where(p => _db.EvaluationResults.Any(r => r.EvaluationPeriodId == p.Id))
+            .OrderByDescending(p => p.Semester.SortKey)
+            .ThenByDescending(p => p.Id)
+            .FirstOrDefaultAsync();
+
     public DashboardController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService)
     {
         _db = db;
@@ -53,14 +69,16 @@ public class DashboardController : Controller
             .Include(p => p.Semester)
             .FirstOrDefaultAsync(p => p.Stage != EvaluationStage.NotStarted && p.Stage != EvaluationStage.Closed);
 
-        var latestPeriod = activePeriod ?? await _db.EvaluationPeriods
-            .OrderByDescending(p => p.Id)
-            .FirstOrDefaultAsync();
+        // Results-based panels must key off the most recent period that HAS results,
+        // not the active one. A period holds no results until AA Staff closes it
+        // (AAS-03), so keying off the active period left these panels empty for the
+        // whole time an evaluation was actually running.
+        var resultsPeriod = await GetLatestPeriodWithResultsAsync();
 
-        var results = latestPeriod is not null
+        var results = resultsPeriod is not null
             ? await _db.EvaluationResults
                 .Include(r => r.Faculty).ThenInclude(f => f.College)
-                .Where(r => r.EvaluationPeriodId == latestPeriod.Id)
+                .Where(r => r.EvaluationPeriodId == resultsPeriod.Id)
                 .ToListAsync()
             : [];
 
@@ -120,6 +138,7 @@ public class DashboardController : Controller
             TotalEvaluations = await _db.Evaluations.CountAsync(),
             ActiveSemester = activeSemester,
             ActivePeriod = activePeriod,
+            ResultsPeriod = resultsPeriod,
             TopPerformers = results.Where(r => r.StudentRespondents > 0)
                                    .OrderByDescending(r => r.StudentRating).Take(5).ToList(),
             LowPerformers = results.Where(r => r.StudentRating > 0 && r.StudentRating < 60).OrderBy(r => r.StudentRating).Take(5).ToList(),
@@ -258,7 +277,8 @@ public class DashboardController : Controller
         switch (type)
         {
             case "college":
-                var latestPeriod = await _db.EvaluationPeriods.OrderByDescending(p => p.Id).FirstOrDefaultAsync();
+                // Must be a period that has results, not the one being evaluated
+                var latestPeriod = await GetLatestPeriodWithResultsAsync();
                 if (latestPeriod is null) return Json(new { labels = Array.Empty<string>(), data = Array.Empty<double>() });
 
                 var collegeData = await _db.EvaluationResults

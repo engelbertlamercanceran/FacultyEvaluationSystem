@@ -1,4 +1,4 @@
-using FacultyEvalSystem.Models;
+﻿using FacultyEvalSystem.Models;
 
 namespace FacultyEvalSystem.ViewModels;
 
@@ -10,6 +10,10 @@ public class AdminDashboardViewModel
     public int TotalEvaluations { get; set; }
     public Semester? ActiveSemester { get; set; }
     public EvaluationPeriod? ActivePeriod { get; set; }
+
+    /// <summary>The period the results-based panels are reporting on. This is the
+    /// most recent CLOSED period, which is not the same as ActivePeriod.</summary>
+    public EvaluationPeriod? ResultsPeriod { get; set; }
     public List<EvaluationResult> TopPerformers { get; set; } = [];
     public List<EvaluationResult> LowPerformers { get; set; } = [];
     public List<CollegePerformance> CollegePerformances { get; set; } = [];

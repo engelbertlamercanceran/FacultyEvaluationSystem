@@ -58,7 +58,13 @@
     </div>
     <div class="col-md-8">
         <div class="card h-100">
-            <div class="card-header">College Performance Comparison (SET Rating)</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>College Performance Comparison (SET Rating)</span>
+                @if (Model.ResultsPeriod is not null)
+                {
+                    <small class="text-muted">@Model.ResultsPeriod.Semester.DisplayName</small>
+                }
+            </div>
             <div class="card-body">
                 <canvas id="collegeChart" height="200"></canvas>
             </div>
@@ -69,7 +75,13 @@
 <div class="row g-3 mb-4">
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">Top 5 Performers (SET)</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Top 5 Performers (SET)</span>
+                @if (Model.ResultsPeriod is not null)
+                {
+                    <small class="text-muted">@Model.ResultsPeriod.Semester.DisplayName</small>
+                }
+            </div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
                     <thead>
@@ -96,7 +108,13 @@
     </div>
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">Faculty Needing Support (SET &lt; 60)</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Faculty Needing Support (SET &lt; 60)</span>
+                @if (Model.ResultsPeriod is not null)
+                {
+                    <small class="text-muted">@Model.ResultsPeriod.Semester.DisplayName</small>
+                }
+            </div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
                     <thead>
