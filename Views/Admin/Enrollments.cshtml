@@ -1,14 +1,14 @@
 @model List<FacultyEvalSystem.Models.StudentEnrollment>
 @{
     var subject = (FacultyEvalSystem.Models.FacultySubject)ViewBag.Subject;
-    ViewData["Title"] = $"Enrollments - {subject.SubjectCode}";
+    ViewData["Title"] = $"Enrollments - {subject.CourseCode}";
 }
 
-<a asp-action="Subjects" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to Subjects</a>
+<a asp-action="Subjects" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to Course Assignments</a>
 
 <div class="card mb-3">
     <div class="card-body">
-        <strong>@subject.SubjectCode - @subject.SubjectName</strong> (@(subject.Section ?? "No Section"))<br/>
+        <strong>@subject.CourseDisplay</strong> (@(subject.Section ?? "No Section"))<br/>
         <small class="text-muted">Faculty: @subject.Faculty.FullName</small>
     </div>
 </div>
@@ -48,7 +48,7 @@
                         {
                             <tr>
                                 <td>@(i + 1)</td>
-                                <td>@Model[i].Student.FullName</td>
+                                <td>@Model[i].Student.SortName</td>
                                 <td>@(Model[i].Student.StudentNumber ?? "-")</td>
                             </tr>
                         }

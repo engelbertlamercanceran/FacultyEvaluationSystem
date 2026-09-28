@@ -13,11 +13,24 @@ public class FacultySubject
     public int SemesterId { get; set; }
     public Semester Semester { get; set; } = null!;
 
-    [Required, MaxLength(20)]
-    public string SubjectCode { get; set; } = "";
+    // Course Code, as written on the Teaching Memo / workload summary. The
+    // system uses "Course Code" throughout; never "Subject Code".
+    [Required, MaxLength(50)]
+    public string CourseCode { get; set; } = "";
 
-    [Required, MaxLength(200)]
-    public string SubjectName { get; set; } = "";
+    // Normalised form of CourseCode (see CourseCodes.Key) so "P.E. 1", "PE 1"
+    // and "pe1" all match the Registrar's masterlist.
+    [Required, MaxLength(50)]
+    public string CourseKey { get; set; } = "";
+
+    // Descriptive title. The faculty workload summary does not carry titles,
+    // so this is optional.
+    [MaxLength(200)]
+    public string? CourseTitle { get; set; }
+
+    public string CourseDisplay => string.IsNullOrWhiteSpace(CourseTitle) || CourseTitle == CourseCode
+        ? CourseCode
+        : $"{CourseCode} - {CourseTitle}";
 
     [MaxLength(20)]
     public string? Section { get; set; }

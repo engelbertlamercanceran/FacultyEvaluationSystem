@@ -9,7 +9,7 @@ public class EvaluationFormViewModel
     public string FacultyId { get; set; } = "";
     public string FacultyName { get; set; } = "";
     public int? FacultySubjectId { get; set; }
-    public string? SubjectName { get; set; }
+    public string? CourseTitle { get; set; }
     public string EvaluatorType { get; set; } = "Student";
 
     public List<CategoryViewModel> Categories { get; set; } = [];
@@ -39,9 +39,10 @@ public class FacultyToEvaluateViewModel
 {
     public string FacultyId { get; set; } = "";
     public string FacultyName { get; set; } = "";
+    public string SortName { get; set; } = "";
     public int? FacultySubjectId { get; set; }
-    public string? SubjectCode { get; set; }
-    public string? SubjectName { get; set; }
+    public string? CourseCode { get; set; }
+    public string? CourseTitle { get; set; }
     public string? Section { get; set; }
     public bool AlreadyEvaluated { get; set; }
     public int? EvaluationId { get; set; }
@@ -80,4 +81,19 @@ public class EvaluationListViewModel
 
     /// <summary>Shown when the period exists but this evaluator's stage is not open yet.</summary>
     public string? StageMessage { get; set; }
+
+    /// <summary>
+    /// Student: Course Codes from the Registrar's masterlist taught by more than one
+    /// faculty member this semester — the student chooses their instructor.
+    /// </summary>
+    public List<InstructorChoiceViewModel> InstructorChoices { get; set; } = [];
+
+    /// <summary>Student: Course Codes with no faculty member on record for this semester.</summary>
+    public List<string> CoursesWithoutInstructor { get; set; } = [];
+}
+
+public class InstructorChoiceViewModel
+{
+    public string CourseCode { get; set; } = "";
+    public List<(int FacultySubjectId, string FacultyName, string? College)> Options { get; set; } = [];
 }

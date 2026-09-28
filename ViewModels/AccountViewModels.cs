@@ -52,6 +52,19 @@ public class RegisterViewModel
     public int? ProgramId { get; set; }
 }
 
+public class ChangePasswordViewModel
+{
+    [Required, DataType(DataType.Password)]
+    [MinLength(6, ErrorMessage = "Password must be at least 6 characters")]
+    [Display(Name = "New Password")]
+    public string Password { get; set; } = "";
+
+    [Required, DataType(DataType.Password)]
+    [Display(Name = "Confirm Password")]
+    [Compare("Password")]
+    public string ConfirmPassword { get; set; } = "";
+}
+
 public class SetPasswordViewModel
 {
     [Required, EmailAddress]

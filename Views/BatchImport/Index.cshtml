@@ -1,25 +1,89 @@
-@{ ViewData["Title"] = "Batch Data Import"; }
+@{
+    ViewData["Title"] = User.IsInRole("Admin") ? "Batch Data Import" : "Faculty & Student Import";
+    var active = ViewBag.ActiveSemester as FacultyEvalSystem.Models.Semester;
+    var isAdmin = User.IsInRole("Admin");
+}
 
-<div class="card mb-4 border-success">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-        <strong>Quick Demo Setup — One Click</strong>
-    </div>
-    <div class="card-body">
-        <p class="mb-2">Sets up the entire system with sample data for demonstration: 5 colleges, 4 programs, 32 users (1 dean, 1 program chair, 10 faculty, 20 students), 3 semesters, 14 subject assignments, 55 enrollments, 3 evaluation periods with sample evaluations, and computed results.</p>
-        <form asp-action="QuickDemoSetup" method="post">
-            <button type="submit" class="btn btn-success"
-                    onclick="this.disabled=true; this.innerText='Setting up... please wait'; this.form.submit(); return true;">
-                Run Quick Demo Setup
-            </button>
-        </form>
-    </div>
+<div class="alert alert-light border small">
+    Active semester: <strong>@(active?.DisplayName ?? "none")</strong>
+    @if (active is not null)
+    {
+        <text>&middot; @ViewBag.StudentCount students with @ViewBag.StudentCourseCount enrolled Course Codes
+        &middot; @ViewBag.AssignmentCount faculty course assignments</text>
+    }
 </div>
 
+<div class="row g-3 mb-4">
+    @* Student Import: the Registrar's masterlist *@
+    <div class="col-lg-6" id="registrar">
+        <div class="card h-100 border-success">
+            <div class="card-header bg-success text-white">
+                <strong>Student Import — Registrar's Masterlist</strong>
+            </div>
+            <div class="card-body">
+                <p class="small mb-2">
+                    Upload the Registrar's list of students and their enrolled subjects (<code>.xlsx</code> or <code>.csv</code>)
+                    for the active semester. For every row the system:
+                </p>
+                <ul class="small mb-3">
+                    <li>retrieves the <strong>student name</strong> and <strong>enrolled Course Codes</strong>;</li>
+                    <li>identifies the student by <strong>Name + Program</strong> &mdash; re-importing updates the same student;</li>
+                    <li>creates the account automatically with the default password <code>@ViewBag.DefaultPassword</code>;</li>
+                    <li>links each Course Code to the faculty member teaching it. Where several faculty teach the same
+                        Course Code, the student confirms their instructor on the evaluation page.</li>
+                </ul>
+                <p class="text-muted small mb-2">
+                    Expected columns (header row): <code>Program Name</code>, <code>Last Name</code>, <code>First Name</code>,
+                    <code>Middle Name</code>, <code>Suffix</code>, then <code>Course Code 1</code> (or <code>Subject Code 1</code>),
+                    <code>Units</code>, <code>Course Code 2</code>, &hellip;
+                </p>
+                <form asp-action="ImportRegistrar" method="post" enctype="multipart/form-data">
+                    <div class="input-group">
+                        <input type="file" name="file" accept=".xlsx,.csv" class="form-control form-control-sm" required />
+                        <button type="submit" class="btn btn-success btn-sm"
+                                onclick="if (this.form.checkValidity()) { this.disabled = true; this.innerText = 'Importing…'; this.form.submit(); }">
+                            Import Students
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @* Uploaded by AA Staff *@
+        <div class="col-lg-6">
+            <div class="card h-100 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <strong>Faculty Workload Summary</strong>
+                </div>
+                <div class="card-body">
+                    <p class="small mb-2">
+                        Upload the campus Faculty Workload Summary (<code>.xlsx</code>) for the active semester. Faculty are
+                        associated with their <strong>College</strong>; Deans and Program Chairs are recognised from the
+                        Designation column and linked to their <strong>Program</strong>. Each Course Code taught becomes a
+                        course assignment. New accounts use the default password.
+                    </p>
+                    <form asp-action="ImportWorkload" method="post" enctype="multipart/form-data">
+                        <div class="input-group">
+                            <input type="file" name="file" accept=".xlsx" class="form-control form-control-sm" required />
+                            <button type="submit" class="btn btn-primary btn-sm"
+                                    onclick="if (this.form.checkValidity()) { this.disabled = true; this.innerText = 'Importing…'; this.form.submit(); }">
+                                Import Workload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+</div>
+
+@if (isAdmin)
+{
 <hr/>
 
 <div class="alert alert-info">
     <strong>Manual Batch Import</strong> — Upload CSV files to import data individually.
-    Import in this order: <strong>1) Colleges & Programs</strong> → <strong>2) Users</strong> → <strong>3) Subjects</strong> → <strong>4) Enrollments</strong>.
+    Import in this order: <strong>1) Colleges & Programs</strong> → <strong>2) Users</strong> → <strong>3) Course Assignments</strong> → <strong>4) Enrollments</strong>.
     <br/><small>Download sample templates below to see the required format.</small>
 </div>
 
@@ -68,17 +132,17 @@
         </div>
     </div>
 
-    <!-- Step 3: Subject Assignments -->
+    <!-- Step 3: Course Assignments -->
     <div class="col-md-6">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span><strong>Step 3:</strong> Subject Assignments</span>
+                <span><strong>Step 3:</strong> Course Assignments</span>
                 <a href="~/samples/subjects.csv" class="btn btn-outline-secondary btn-sm" download>Download Template</a>
             </div>
             <div class="card-body">
                 <p class="text-muted small mb-2">
-                    Columns: <code>FacultyEmail, SubjectCode, SubjectName, Section</code><br/>
-                    Subjects are assigned to the <strong>currently active semester</strong>. Make sure a semester is active before importing.
+                    Columns: <code>FacultyEmail, CourseCode, CourseTitle, Section</code><br/>
+                    Courses are assigned to the <strong>currently active semester</strong>. Make sure a semester is active before importing.
                 </p>
                 <form asp-action="ImportSubjects" method="post" enctype="multipart/form-data">
                     <div class="input-group">
@@ -99,8 +163,8 @@
             </div>
             <div class="card-body">
                 <p class="text-muted small mb-2">
-                    Columns: <code>StudentEmail, SubjectCode, Section</code><br/>
-                    Links students to subjects in the <strong>active semester</strong>. Subjects must be imported first.
+                    Columns: <code>StudentEmail, CourseCode, Section</code><br/>
+                    Links students to courses in the <strong>active semester</strong>. Course assignments must be imported first.
                 </p>
                 <form asp-action="ImportEnrollments" method="post" enctype="multipart/form-data">
                     <div class="input-group">
@@ -121,7 +185,7 @@
         <p class="text-muted small mb-2">
             Generates sample student and supervisor evaluations for <strong>all faculty</strong> across <strong>all evaluation periods</strong>,
             with varied ratings and comments. Results are automatically computed after generation.<br/>
-            <strong>Prerequisites:</strong> Users, subjects, and at least one evaluation period must exist.
+            <strong>Prerequisites:</strong> Users, course assignments, and at least one evaluation period must exist.
         </p>
         <form asp-action="GenerateSampleEvaluations" method="post">
             <button type="submit" class="btn btn-warning btn-sm"
@@ -136,12 +200,13 @@
     <div class="card-header">Import Notes</div>
     <div class="card-body">
         <ul class="mb-0 small">
-            <li>Files must be in <strong>CSV format</strong> (comma-separated values). You can save Excel files as CSV using "Save As → CSV (Comma delimited)".</li>
+            <li>These four imports take <strong>CSV files</strong> (comma-separated values). You can save Excel files as CSV using "Save As → CSV (Comma delimited)".</li>
             <li>The first row must be the <strong>header row</strong> with column names.</li>
             <li><strong>Duplicate records are automatically skipped</strong> — you can safely re-import the same file without creating duplicates.</li>
-            <li>Users are matched by <strong>email address</strong>. Subjects are matched by <strong>code + section + semester</strong>.</li>
-            <li>For subjects and enrollments, a <strong>semester must be active</strong>. Create one in Semesters first.</li>
-            <li>Imported data can also be managed individually through the Admin pages (Users, Subjects, Enrollments).</li>
+            <li>Users are matched by <strong>email address</strong>. Courses are matched by <strong>code + section + semester</strong>.</li>
+            <li>For course assignments and enrollments, a <strong>semester must be active</strong>. Create one in Semesters first.</li>
+            <li>Imported data can also be managed individually through the Admin pages (Users, Course Assignments, Enrollments).</li>
         </ul>
     </div>
 </div>
+}

@@ -16,19 +16,38 @@ public class AdminController : Controller
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly EvaluationService _evalService;
+    private readonly NotificationService _notifications;
+    private readonly EvaluatorAssignmentService _assignments;
 
-    public AdminController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService)
+    private const int UsersPageSize = 100;
+
+    public AdminController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService,
+        NotificationService notifications, EvaluatorAssignmentService assignments)
     {
         _db = db;
         _userManager = userManager;
         _evalService = evalService;
+        _notifications = notifications;
+        _assignments = assignments;
     }
 
     // --- User Management ---
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Users(string? search)
+    public async Task<IActionResult> Users(string? search, string? role, int? collegeId, int page = 1)
     {
         var query = _db.Users.Include(u => u.College).Include(u => u.Program).AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            var roleUserIds = from ur in _db.UserRoles
+                              join r in _db.Roles on ur.RoleId equals r.Id
+                              where r.Name == role
+                              select ur.UserId;
+            query = query.Where(u => roleUserIds.Contains(u.Id));
+        }
+
+        if (collegeId.HasValue)
+            query = query.Where(u => u.CollegeId == collegeId);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -39,18 +58,39 @@ public class AdminController : Controller
                 u.Email!.ToLower().Contains(term) ||
                 (u.EmployeeNumber != null && u.EmployeeNumber.ToLower().Contains(term)) ||
                 (u.StudentNumber != null && u.StudentNumber.ToLower().Contains(term)) ||
-                (u.College != null && u.College.Code.ToLower().Contains(term)));
+                (u.College != null && u.College.Code.ToLower().Contains(term)) ||
+                (u.Program != null && u.Program.Code.ToLower().Contains(term)));
         }
 
-        var users = await query.OrderBy(u => u.LastName).ToListAsync();
-        var userRoles = new Dictionary<string, string>();
-        foreach (var user in users)
-        {
-            var roles = await _userManager.GetRolesAsync(user);
-            userRoles[user.Id] = roles.FirstOrDefault() ?? "None";
-        }
-        ViewBag.UserRoles = userRoles;
+        var total = await query.CountAsync();
+        page = Math.Clamp(page, 1, Math.Max(1, (int)Math.Ceiling(total / (double)UsersPageSize)));
+
+        // Alphabetical: last name, then first name
+        var users = await query
+            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName).ThenBy(u => u.MiddleName)
+            .Skip((page - 1) * UsersPageSize)
+            .Take(UsersPageSize)
+            .ToListAsync();
+
+        // One query for the roles of the whole page
+        var ids = users.Select(u => u.Id).ToList();
+        var userRoles = await (from ur in _db.UserRoles
+                               join r in _db.Roles on ur.RoleId equals r.Id
+                               where ids.Contains(ur.UserId)
+                               select new { ur.UserId, r.Name })
+                              .ToListAsync();
+
+        ViewBag.UserRoles = userRoles
+            .GroupBy(x => x.UserId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Name!).OrderBy(n => n).First());
         ViewBag.Search = search;
+        ViewBag.Role = role;
+        ViewBag.CollegeId = collegeId;
+        ViewBag.Page = page;
+        ViewBag.Total = total;
+        ViewBag.PageSize = UsersPageSize;
+        ViewBag.Roles = await _db.Roles.OrderBy(r => r.Name).Select(r => r.Name!).ToListAsync();
+        ViewBag.CollegeList = new SelectList(await _db.Colleges.OrderBy(c => c.Name).ToListAsync(), "Id", "Name", collegeId);
         return View(users);
     }
 
@@ -208,6 +248,28 @@ public class AdminController : Controller
             case EvaluationStage.Closed: period.ClosedAt = now; break;
         }
 
+        await _db.Entry(period).Reference(p => p.Semester).LoadAsync();
+
+        // In-app notifications when the supervisors' evaluation opens: both the
+        // Deans and the Program Chairs are told it is open and available.
+        if (next.Value == EvaluationStage.SupervisorEvaluation)
+        {
+            _notifications.Add(await _assignments.GetSupervisorIdsAsync(),
+                "Staff Evaluation for Supervisors is now open",
+                $"The supervisor evaluation for {period.Semester.DisplayName} is open and available. "
+                + "Program Chairs may now evaluate the faculty teaching in their programs.",
+                Url.Action("SupervisorEvaluate", "Evaluation"));
+        }
+        else if (next.Value == EvaluationStage.DeanEvaluation)
+        {
+            var deans = (await _userManager.GetUsersInRoleAsync("Dean")).Where(d => d.IsActive).Select(d => d.Id);
+            var aa = (await _userManager.GetUsersInRoleAsync("AA")).Where(d => d.IsActive).Select(d => d.Id);
+            _notifications.Add(deans.Concat(aa),
+                "Dean Evaluation of Program Chairs is now open",
+                $"The evaluation of Program Chairs for {period.Semester.DisplayName} is open and available.",
+                Url.Action("SupervisorEvaluate", "Evaluation"));
+        }
+
         await _db.SaveChangesAsync();
 
         // Closing the period computes the results for everyone evaluated in it.
@@ -256,23 +318,38 @@ public class AdminController : Controller
                 .Include(fs => fs.Semester)
                 .Include(fs => fs.Program).ThenInclude(p => p!.College)
                 .Where(fs => fs.SemesterId == activeSemester.Id)
+                .OrderBy(fs => fs.Faculty.LastName).ThenBy(fs => fs.Faculty.FirstName).ThenBy(fs => fs.CourseCode)
                 .ToListAsync()
             : [];
 
         ViewBag.ActiveSemester = activeSemester;
-        var faculty = await _userManager.GetUsersInRoleAsync("Faculty");
-        ViewBag.Faculty = new SelectList(faculty.Where(f => f.IsActive), "Id", "FullName");
+        ViewBag.Faculty = new SelectList(await TeachingStaffAsync(), "Id", "SortName");
 
         // SUP-02: the owning program must be recorded against each course
         ViewBag.Programs = new SelectList(
-            await _db.AcademicPrograms.Include(p => p.College).OrderBy(p => p.Code).ToListAsync(),
-            "Id", "Code");
+            (await _db.AcademicPrograms.Include(p => p.College).OrderBy(p => p.Name).ToListAsync())
+                .Select(p => new { p.Id, Label = $"{p.Name} ({p.Code})" }),
+            "Id", "Label");
         return View(subjects);
+    }
+
+    /// <summary>Active faculty, Program Chairs and Deans, alphabetically.</summary>
+    private async Task<List<ApplicationUser>> TeachingStaffAsync()
+    {
+        var ids = await (from ur in _db.UserRoles
+                         join r in _db.Roles on ur.RoleId equals r.Id
+                         where r.Name == "Faculty" || r.Name == "ProgramChair" || r.Name == "Dean"
+                         select ur.UserId).Distinct().ToListAsync();
+
+        return await _db.Users
+            .Where(u => u.IsActive && ids.Contains(u.Id))
+            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
+            .ToListAsync();
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateSubject(string facultyId, string subjectCode, string subjectName, string? section, int? programId)
+    public async Task<IActionResult> CreateSubject(string facultyId, string courseCode, string? courseTitle, string? section, int? programId)
     {
         var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
         if (activeSemester is null)
@@ -285,13 +362,14 @@ public class AdminController : Controller
         {
             FacultyId = facultyId,
             SemesterId = activeSemester.Id,
-            SubjectCode = subjectCode,
-            SubjectName = subjectName,
+            CourseCode = CourseCodes.Clean(courseCode),
+            CourseKey = CourseCodes.Key(courseCode),
+            CourseTitle = string.IsNullOrWhiteSpace(courseTitle) ? null : courseTitle.Trim(),
             Section = section,
             ProgramId = programId
         });
         await _db.SaveChangesAsync();
-        TempData["Success"] = "Subject assigned.";
+        TempData["Success"] = "Course assigned.";
         return RedirectToAction("Subjects");
     }
 
@@ -315,7 +393,9 @@ public class AdminController : Controller
                 (se.Student.StudentNumber != null && se.Student.StudentNumber.ToLower().Contains(term)));
         }
 
-        var enrollments = await query.ToListAsync();
+        var enrollments = await query
+            .OrderBy(se => se.Student.LastName).ThenBy(se => se.Student.FirstName)
+            .ToListAsync();
 
         ViewBag.Subject = subject;
         ViewBag.Search = search;
@@ -349,7 +429,7 @@ public class AdminController : Controller
         }
 
         var students = await query
-            .OrderBy(u => u.LastName)
+            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
             .Take(10)
             .Select(u => new { u.Id, Name = u.FirstName + " " + u.LastName, u.StudentNumber })
             .ToListAsync();
@@ -382,7 +462,9 @@ public class AdminController : Controller
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Results(int? periodId)
     {
-        var periods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderByDescending(p => p.Id).ToListAsync();
+        var periods = await _db.EvaluationPeriods.Include(p => p.Semester)
+            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id).ToListAsync();
+        periodId ??= periods.FirstOrDefault()?.Id;
         ViewBag.Periods = new SelectList(periods, "Id", "DisplayName", periodId);
 
         var results = periodId.HasValue
@@ -390,7 +472,7 @@ public class AdminController : Controller
                 .Include(r => r.Faculty).ThenInclude(f => f.College)
                 .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
                 .Where(r => r.EvaluationPeriodId == periodId.Value)
-                .OrderByDescending(r => r.StudentRating)
+                .OrderBy(r => r.Faculty.LastName).ThenBy(r => r.Faculty.FirstName)
                 .ToListAsync()
             : [];
 
@@ -401,7 +483,9 @@ public class AdminController : Controller
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Colleges()
     {
-        return View(await _db.Colleges.Include(c => c.Programs).ToListAsync());
+        var colleges = await _db.Colleges.Include(c => c.Programs).OrderBy(c => c.Name).ToListAsync();
+        foreach (var c in colleges) c.Programs = c.Programs.OrderBy(p => p.Name).ToList();
+        return View(colleges);
     }
 
     [Authorize(Roles = "Admin")]
@@ -536,8 +620,8 @@ public class AdminController : Controller
 
     private async Task PopulateDropdowns()
     {
-        ViewBag.Colleges = new SelectList(await _db.Colleges.ToListAsync(), "Id", "Name");
-        ViewBag.Programs = new SelectList(await _db.AcademicPrograms.ToListAsync(), "Id", "Name");
-        ViewBag.Roles = new SelectList(new[] { "Student", "Faculty", "Dean", "ProgramChair", "CEO", "AA", "AAStaff", "QA", "Admin" });
+        ViewBag.Colleges = new SelectList(await _db.Colleges.OrderBy(c => c.Name).ToListAsync(), "Id", "Name");
+        ViewBag.Programs = new SelectList(await _db.AcademicPrograms.OrderBy(p => p.Name).ToListAsync(), "Id", "Name");
+        ViewBag.Roles = new SelectList(new[] { "AA", "AAStaff", "Admin", "CEO", "Dean", "Faculty", "ProgramChair", "QA", "Student" });
     }
 }

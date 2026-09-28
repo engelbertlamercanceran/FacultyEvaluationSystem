@@ -40,7 +40,7 @@ public class EvaluationController : Controller
         if (activePeriod is null)
             return View(new EvaluationListViewModel { ActivePeriod = null });
 
-        // Get faculty-subjects the student is enrolled in
+        // Courses the student is linked to an instructor for
         var enrollments = await _db.StudentEnrollments
             .Include(se => se.FacultySubject)
                 .ThenInclude(fs => fs.Faculty)
@@ -59,20 +59,94 @@ public class EvaluationController : Controller
             {
                 FacultyId = e.FacultySubject.FacultyId,
                 FacultyName = e.FacultySubject.Faculty.FullName,
+                SortName = e.FacultySubject.Faculty.SortName,
                 FacultySubjectId = e.FacultySubjectId,
-                SubjectCode = e.FacultySubject.SubjectCode,
-                SubjectName = e.FacultySubject.SubjectName,
+                CourseCode = e.FacultySubject.CourseCode,
+                CourseTitle = e.FacultySubject.CourseTitle,
                 Section = e.FacultySubject.Section,
                 AlreadyEvaluated = myEval is not null,
                 EvaluationId = myEval?.Id
             };
-        }).ToList();
+        })
+        .OrderBy(f => f.CourseCode).ThenBy(f => f.SortName)
+        .ToList();
+
+        // Registrar's masterlist: Course Codes not yet linked to an instructor
+        var linkedKeys = enrollments.Select(e => e.FacultySubject.CourseKey).ToHashSet();
+        var unlinked = (await _db.StudentCourses
+                .Where(sc => sc.StudentId == user!.Id && sc.SemesterId == activePeriod.SemesterId)
+                .ToListAsync())
+            .Where(sc => !linkedKeys.Contains(sc.CourseKey))
+            .OrderBy(sc => sc.CourseCode)
+            .ToList();
+
+        var unlinkedKeys = unlinked.Select(sc => sc.CourseKey).ToList();
+        var teaching = await _db.FacultySubjects
+            .Include(fs => fs.Faculty).ThenInclude(f => f.College)
+            .Where(fs => fs.SemesterId == activePeriod.SemesterId && unlinkedKeys.Contains(fs.CourseKey) && fs.Faculty.IsActive)
+            .ToListAsync();
+
+        var choices = new List<InstructorChoiceViewModel>();
+        var noInstructor = new List<string>();
+        foreach (var sc in unlinked)
+        {
+            var options = teaching.Where(t => t.CourseKey == sc.CourseKey)
+                .DistinctBy(t => t.FacultyId)
+                .OrderBy(t => t.Faculty.LastName).ThenBy(t => t.Faculty.FirstName)
+                .Select(t => (t.Id, t.Faculty.FullName, t.Faculty.College?.Code))
+                .ToList();
+
+            if (options.Count == 0) noInstructor.Add(sc.CourseCode);
+            else choices.Add(new InstructorChoiceViewModel { CourseCode = sc.CourseCode, Options = options });
+        }
 
         return View(new EvaluationListViewModel
         {
             ActivePeriod = activePeriod,
-            FacultyList = facultyList
+            FacultyList = facultyList,
+            InstructorChoices = choices,
+            CoursesWithoutInstructor = noInstructor
         });
+    }
+
+    /// <summary>
+    /// Student: where a Course Code on the Registrar's masterlist is taught by more
+    /// than one faculty member, the student confirms which one is their instructor.
+    /// </summary>
+    [Authorize(Roles = "Student")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChooseInstructor(int facultySubjectId)
+    {
+        var user = await _userManager.GetUserAsync(User);
+
+        var assignment = await _db.FacultySubjects.FindAsync(facultySubjectId);
+        if (assignment is null) return NotFound();
+
+        // The course must be on the student's own masterlist for that semester
+        var enrolled = await _db.StudentCourses.AnyAsync(sc => sc.StudentId == user!.Id
+            && sc.SemesterId == assignment.SemesterId && sc.CourseKey == assignment.CourseKey);
+        if (!enrolled)
+        {
+            TempData["Error"] = "That course is not on your list of enrolled courses.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // One instructor per course
+        var already = await _db.StudentEnrollments.AnyAsync(se => se.StudentId == user!.Id
+            && se.FacultySubject.SemesterId == assignment.SemesterId
+            && se.FacultySubject.CourseKey == assignment.CourseKey);
+        if (already)
+        {
+            TempData["Error"] = $"You have already chosen your instructor for {assignment.CourseCode}.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        _db.StudentEnrollments.Add(new StudentEnrollment { StudentId = user!.Id, FacultySubjectId = assignment.Id });
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Instructor for {assignment.CourseCode} recorded. You can now evaluate them.";
+        return RedirectToAction(nameof(Index));
     }
 
     // Show evaluation form
@@ -120,7 +194,7 @@ public class EvaluationController : Controller
             FacultyId = facultyId,
             FacultyName = faculty?.FullName ?? "",
             FacultySubjectId = subjectId,
-            SubjectName = subject is not null ? $"{subject.SubjectCode} - {subject.SubjectName}" : null,
+            CourseTitle = subject?.CourseDisplay,
             EvaluatorType = evaluatorType,
             Categories = categories.Select(c => new CategoryViewModel
             {
@@ -288,18 +362,19 @@ public class EvaluationController : Controller
                 {
                     FacultyId = faculty.Id,
                     FacultyName = faculty.FullName,
+                    SortName = faculty.SortName,
                     AlreadyEvaluated = myEval is not null,
                     EvaluationId = myEval?.Id,
                     CoursesInProgram = g
                         .Select(fs => string.IsNullOrWhiteSpace(fs.Section)
-                            ? fs.SubjectCode
-                            : $"{fs.SubjectCode} ({fs.Section})")
+                            ? fs.CourseCode
+                            : $"{fs.CourseCode} ({fs.Section})")
                         .Distinct().OrderBy(c => c).ToList(),
                     IsFromAnotherDepartment = faculty.ProgramId != chair.ProgramId,
                     HomeDepartment = faculty.Program?.Code ?? faculty.College?.Code
                 };
             })
-            .OrderBy(f => f.FacultyName)
+            .OrderBy(f => f.SortName)
             .ToList();
 
         if (model.FacultyList.Count == 0)
@@ -325,7 +400,7 @@ public class EvaluationController : Controller
             {
                 GroupName = g.Key,
                 GroupSubtitle = g.First().Program?.Code,
-                Members = g.Select(c => ToRosterEntry(c, existingEvals)).OrderBy(m => m.FacultyName).ToList()
+                Members = g.Select(c => ToRosterEntry(c, existingEvals)).OrderBy(m => m.SortName).ToList()
             })
             .ToList();
 
@@ -349,7 +424,7 @@ public class EvaluationController : Controller
             {
                 GroupName = g.Key,
                 GroupSubtitle = g.First().College?.Code,
-                Members = g.Select(c => ToRosterEntry(c, existingEvals)).OrderBy(m => m.FacultyName).ToList()
+                Members = g.Select(c => ToRosterEntry(c, existingEvals)).OrderBy(m => m.SortName).ToList()
             })
             .ToList();
 
@@ -366,6 +441,7 @@ public class EvaluationController : Controller
         {
             FacultyId = user.Id,
             FacultyName = user.FullName,
+            SortName = user.SortName,
             AlreadyEvaluated = myEval is not null,
             EvaluationId = myEval?.Id,
             HomeDepartment = user.Program?.Code ?? user.College?.Code

@@ -94,7 +94,7 @@ else
                             <th>Faculty Name</th>
                             @if (isStudent)
                             {
-                                <th>Subject</th>
+                                <th>Course</th>
                                 <th>Section</th>
                             }
                             else
@@ -123,7 +123,7 @@ else
                                 </td>
                                 @if (isStudent)
                                 {
-                                    <td>@(f.SubjectCode is not null ? $"{f.SubjectCode} - {f.SubjectName}" : "General")</td>
+                                    <td>@(f.CourseCode is null ? "General" : string.IsNullOrWhiteSpace(f.CourseTitle) || f.CourseTitle == f.CourseCode ? f.CourseCode : $"{f.CourseCode} - {f.CourseTitle}")</td>
                                     <td>@(f.Section ?? "-")</td>
                                 }
                                 else
@@ -168,12 +168,59 @@ else
                         }
                         @if (!Model.FacultyList.Any())
                         {
-                            <tr><td colspan="5" class="text-center text-muted py-4">No faculty assigned for evaluation</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted py-4">@(isStudent && Model.InstructorChoices.Any() ? "Choose your instructor below to start evaluating" : "No faculty assigned for evaluation")</td></tr>
                         }
                     </tbody>
                 </table>
             </div>
         </div>
+
+        @* Course Codes on the Registrar's masterlist taught by more than one faculty member *@
+        @if (isStudent && Model.InstructorChoices.Any())
+        {
+            <div class="card mt-3">
+                <div class="card-header">
+                    Confirm your instructor
+                    <br /><small class="text-muted fw-normal">
+                        These courses from your enrollment record are taught by more than one faculty member.
+                        Choose the one who teaches your class, then evaluate them.
+                    </small>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table mb-0 align-middle">
+                        <thead><tr><th style="width:25%;">Course Code</th><th>Your instructor</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in Model.InstructorChoices)
+                            {
+                                <tr>
+                                    <td><strong>@c.CourseCode</strong></td>
+                                    <td>
+                                        <form asp-action="ChooseInstructor" method="post" class="d-flex gap-2">
+                                            <select name="facultySubjectId" class="form-select form-select-sm" required>
+                                                <option value="">Choose instructor&hellip;</option>
+                                                @foreach (var o in c.Options)
+                                                {
+                                                    <option value="@o.FacultySubjectId">@o.FacultyName@(o.College is not null ? $" ({o.College})" : "")</option>
+                                                }
+                                            </select>
+                                            <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap">Confirm</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        @if (isStudent && Model.CoursesWithoutInstructor.Any())
+        {
+            <p class="small text-muted mt-3">
+                No instructor is on record yet for: @string.Join(", ", Model.CoursesWithoutInstructor).
+                These will appear here once Academic Affairs records who teaches them.
+            </p>
+        }
     }
 
     <!-- My Rating Modal -->

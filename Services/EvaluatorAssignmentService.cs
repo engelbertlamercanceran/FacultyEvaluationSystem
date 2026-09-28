@@ -125,4 +125,102 @@ public class EvaluatorAssignmentService
 
         return [];
     }
+
+    /// <summary>Ids of active users holding any of the given roles.</summary>
+    private async Task<List<string>> UserIdsInRolesAsync(params string[] roleNames)
+    {
+        return await (from ur in _db.UserRoles
+                      join r in _db.Roles on ur.RoleId equals r.Id
+                      where roleNames.Contains(r.Name!)
+                      select ur.UserId).Distinct().ToListAsync();
+    }
+
+    /// <summary>
+    /// Whose Development Plans a supervisor may create and edit:
+    ///   Program Chair -> the faculty they evaluate (PC-01) plus the faculty of their program;
+    ///   Dean          -> every faculty member and Program Chair under their college;
+    ///   AA            -> Program Chairs with no designated evaluator (AA-01).
+    /// </summary>
+    public async Task<List<string>> GetDevelopmentPlanScopeAsync(
+        ApplicationUser user, IList<string> roles, int periodId)
+    {
+        var teachingStaff = await UserIdsInRolesAsync("Faculty", "ProgramChair");
+
+        if (roles.Contains("ProgramChair"))
+        {
+            var ids = await GetSupervisedIdsAsync(user, roles, periodId);
+            if (user.ProgramId is not null)
+            {
+                ids.AddRange(await _db.Users
+                    .Where(u => u.IsActive && u.ProgramId == user.ProgramId && u.Id != user.Id
+                             && teachingStaff.Contains(u.Id))
+                    .Select(u => u.Id)
+                    .ToListAsync());
+            }
+            return ids.Distinct().ToList();
+        }
+
+        if (roles.Contains("Dean"))
+        {
+            if (user.CollegeId is null) return [];
+            return await _db.Users
+                .Where(u => u.IsActive && u.CollegeId == user.CollegeId && u.Id != user.Id
+                         && teachingStaff.Contains(u.Id))
+                .Select(u => u.Id)
+                .ToListAsync();
+        }
+
+        if (roles.Contains("AA"))
+            return (await GetChairsWithoutEvaluatorAsync()).Select(c => c.Id).ToList();
+
+        return [];
+    }
+
+    /// <summary>
+    /// The Program Chair concerned with a faculty member's Development Plan: the Chair
+    /// of the faculty member's own program, otherwise the Chair of a program in the
+    /// same college whose courses they teach this semester (PC-01). Null when the
+    /// faculty member is themselves the only Chair in question.
+    /// </summary>
+    public async Task<ApplicationUser?> FindConcernedProgramChairAsync(ApplicationUser faculty, int semesterId)
+    {
+        var chairs = (await GetProgramChairsAsync()).Where(c => c.Id != faculty.Id).ToList();
+
+        if (faculty.ProgramId is not null)
+        {
+            var own = chairs.FirstOrDefault(c => c.ProgramId == faculty.ProgramId);
+            if (own is not null) return own;
+        }
+
+        var teachingPrograms = await _db.FacultySubjects
+            .Where(fs => fs.FacultyId == faculty.Id && fs.SemesterId == semesterId && fs.ProgramId != null)
+            .GroupBy(fs => fs.ProgramId)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .ToListAsync();
+
+        foreach (var programId in teachingPrograms)
+        {
+            var chair = chairs.FirstOrDefault(c => c.ProgramId == programId
+                                                && (faculty.CollegeId is null || c.CollegeId == faculty.CollegeId));
+            if (chair is not null) return chair;
+        }
+
+        return null;
+    }
+
+    /// <summary>The active Dean of a college, if there is one.</summary>
+    public async Task<ApplicationUser?> FindDeanAsync(int? collegeId)
+    {
+        if (collegeId is null) return null;
+        var deans = await _userManager.GetUsersInRoleAsync("Dean");
+        return deans.FirstOrDefault(d => d.IsActive && d.CollegeId == collegeId);
+    }
+
+    /// <summary>Active Deans and Program Chairs — notified when the supervisor evaluation opens.</summary>
+    public async Task<List<string>> GetSupervisorIdsAsync()
+    {
+        var ids = await UserIdsInRolesAsync("Dean", "ProgramChair");
+        return await _db.Users.Where(u => u.IsActive && ids.Contains(u.Id)).Select(u => u.Id).ToListAsync();
+    }
 }

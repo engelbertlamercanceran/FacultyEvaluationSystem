@@ -91,7 +91,7 @@
                         <tr>
                             <th>Memo</th>
                             <th>Faculty</th>
-                            <th>Subject</th>
+                            <th>Course</th>
                             <th>Section</th>
                             <th>Owning Program</th>
                         </tr>
@@ -106,7 +106,7 @@
                             <tr class="@(a.ProgramId is null ? "table-warning" : "")">
                                 <td><small class="text-muted">@(a.TeachingMemoNumber ?? "—")</small></td>
                                 <td><small>@a.Faculty.FullName</small></td>
-                                <td><small>@a.SubjectCode<br /><span class="text-muted">@a.SubjectName</span></small></td>
+                                <td><small>@a.CourseCode<br /><span class="text-muted">@a.CourseTitle</span></small></td>
                                 <td><small>@(a.Section ?? "—")</small></td>
                                 <td>
                                     <form asp-action="SetProgram" method="post" class="d-flex gap-1">

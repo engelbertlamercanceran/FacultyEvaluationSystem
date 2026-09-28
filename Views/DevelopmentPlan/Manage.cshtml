@@ -1,35 +1,52 @@
 @using FacultyEvalSystem.Models
-@model List<EvaluationResult>
+@model List<FacultyEvalSystem.Controllers.DevelopmentPlanController.RosterRow>
 @{
     ViewData["Title"] = "Development Plans";
     var periods = (List<EvaluationPeriod>)ViewBag.Periods;
     var selectedPeriodId = (int?)ViewBag.SelectedPeriodId;
-    var plans = (Dictionary<string, DevelopmentPlan>)ViewBag.Plans;
 
     var isDean = User.IsInRole("Dean");
     var isAa = User.IsInRole("AA");
     var rosterLabel = isDean
-        ? "Program Chairs under your college"
+        ? "Faculty and Program Chairs under your college"
         : isAa
             ? "Program Chairs with no designated evaluator"
-            : "Faculty teaching in your program";
+            : "Faculty in your program";
 }
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get">
-            <label class="form-label">Evaluation Period</label>
-            <select name="periodId" class="form-select" onchange="this.form.submit()">
-                @foreach (var p in periods)
-                {
-                    <option value="@p.Id" selected="@(p.Id == selectedPeriodId)">@p.DisplayName</option>
-                }
-            </select>
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-8">
+                <label class="form-label">Evaluation Period</label>
+                <select name="periodId" class="form-select" onchange="this.form.submit()">
+                    @foreach (var p in periods)
+                    {
+                        <option value="@p.Id" selected="@(p.Id == selectedPeriodId)">@p.DisplayName</option>
+                    }
+                </select>
+            </div>
         </form>
+        <p class="small text-muted mt-3 mb-0">
+            @if (isDean)
+            {
+                <text>Creating a Development Plan notifies the faculty member and their Program Chair.
+                The faculty member may edit and acknowledge it; the Program Chair then finalizes it.</text>
+            }
+            else
+            {
+                <text>Creating a Development Plan notifies the faculty member. After they acknowledge it you
+                will be notified, and you can review it and click <strong>Finalize</strong> to lock it.</text>
+            }
+        </p>
     </div>
 </div>
 
-@if (Model.Any())
+@if (periods.Count == 0)
+{
+    <div class="alert alert-info">No evaluation periods have been created yet.</div>
+}
+else if (Model.Any())
 {
     <div class="card">
         <div class="card-header">@rosterLabel (@Model.Count)</div>
@@ -38,34 +55,40 @@
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Department</th>
+                        <th>Program</th>
                         <th class="text-center">SET Rating</th>
                         <th class="text-center">SEF Rating</th>
-                        <th class="text-center">FEDAF Status</th>
+                        <th class="text-center">Development Plan</th>
                         <th class="text-end">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var r in Model)
+                    @foreach (var row in Model)
                     {
-                        var plan = plans.GetValueOrDefault(r.FacultyId);
+                        var plan = row.Plan;
                         var status = plan?.Status ?? FedafStatus.Draft;
                         <tr>
-                            <td>@r.Faculty.FullName</td>
-                            <td><small class="text-muted">@(r.Faculty.Program?.Code ?? r.Faculty.College?.Code ?? "—")</small></td>
-                            <td class="text-center"><strong>@r.StudentRating.ToString("F2")</strong></td>
-                            <td class="text-center"><strong>@r.SupervisorRating.ToString("F2")</strong></td>
+                            <td>@row.Faculty.SortName</td>
+                            <td><small class="text-muted">@(row.Faculty.Program?.Code ?? row.Faculty.College?.Code ?? "—")</small></td>
+                            <td class="text-center">@(row.Result is not null ? row.Result.StudentRating.ToString("F2") : "—")</td>
+                            <td class="text-center">@(row.Result is not null ? row.Result.SupervisorRating.ToString("F2") : "—")</td>
                             <td class="text-center">
                                 <span class="badge @DevelopmentPlan.StatusBadgeClass(status)">@DevelopmentPlan.StatusLabel(status)</span>
                                 @if (plan?.AcknowledgedAt != null)
                                 {
-                                    <br /><small class="text-muted">@plan.AcknowledgedAt.Value.ToString("MMM dd, yyyy")</small>
+                                    <br /><small class="text-muted">Acknowledged @plan.AcknowledgedAt.Value.ToString("MMM dd, yyyy")</small>
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="Review" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
-                                   class="btn btn-outline-primary btn-sm">
-                                    @(status == FedafStatus.Draft ? "Enter Development Plan" : "Review & Plan")
+                                <a asp-action="Review" asp-route-periodId="@selectedPeriodId" asp-route-facultyId="@row.Faculty.Id"
+                                   class="btn btn-sm @(status == FedafStatus.Acknowledged ? "btn-warning" : "btn-outline-primary")">
+                                    @(status switch
+                                    {
+                                        FedafStatus.Draft => "Create Development Plan",
+                                        FedafStatus.Acknowledged => "Review & Finalize",
+                                        FedafStatus.Finalized => "View",
+                                        _ => "View / Edit"
+                                    })
                                 </a>
                             </td>
                         </tr>
@@ -78,6 +101,6 @@
 else
 {
     <div class="alert alert-info">
-        No evaluation results found for this period among @rosterLabel.ToLower().
+        There is nobody in your list for this period (@rosterLabel.ToLower()).
     </div>
 }

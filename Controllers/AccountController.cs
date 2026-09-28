@@ -67,6 +67,11 @@ public class AccountController : Controller
         if (result.Succeeded)
         {
             var loggedInUser = await _userManager.FindByEmailAsync(model.Email);
+
+            // Imported accounts start on the default password: change it first
+            if (loggedInUser!.MustChangePassword)
+                return RedirectToAction(nameof(ChangePassword));
+
             var roles = await _userManager.GetRolesAsync(loggedInUser!);
 
             return roles.FirstOrDefault() switch
@@ -127,6 +132,55 @@ public class AccountController : Controller
             ModelState.AddModelError("", error.Description);
 
         return View(model);
+    }
+
+    /// <summary>
+    /// First login on an imported account: the default password must be replaced
+    /// before the user can go anywhere else.
+    /// </summary>
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpGet]
+    public IActionResult ChangePassword() => View(new ChangePasswordViewModel());
+
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model,
+        [FromServices] FacultyEvalSystem.Services.DataImportService import)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null) return RedirectToAction(nameof(Login));
+
+        if (model.Password == import.DefaultPassword)
+        {
+            ModelState.AddModelError("", "Please choose a password different from the default password.");
+            return View(model);
+        }
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await _userManager.ResetPasswordAsync(user, token, model.Password);
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+                ModelState.AddModelError("", error.Description);
+            return View(model);
+        }
+
+        user.MustChangePassword = false;
+        await _userManager.UpdateAsync(user);
+        await _signInManager.RefreshSignInAsync(user);
+
+        var roles = await _userManager.GetRolesAsync(user);
+        TempData["Success"] = "Your password has been changed. Welcome!";
+        return roles.FirstOrDefault() switch
+        {
+            "Admin" or "CEO" or "Dean" or "ProgramChair" or "AA" or "AAStaff" or "QA" => RedirectToAction("Index", "Dashboard"),
+            "Faculty" => RedirectToAction("Faculty", "Dashboard"),
+            "Student" => RedirectToAction("Index", "Evaluation"),
+            _ => RedirectToAction("Index", "Home")
+        };
     }
 
     [HttpPost]

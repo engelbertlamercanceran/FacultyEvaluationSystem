@@ -181,7 +181,7 @@ public static class DocumentationService
                         "  ViewModels/        - Data transfer objects for Views",
                         "  Views/             - Razor Views organized by Controller",
                         "    Account/         - Login, AccessDenied",
-                        "    Admin/           - Users, Colleges, Semesters, Periods, Subjects, Enrollments, Results",
+                        "    Admin/           - Users, Colleges, Semesters, Periods, Course Assignments, Enrollments, Results",
                         "    Dashboard/       - Admin Dashboard, Faculty Dashboard",
                         "    Evaluation/      - Faculty list, Evaluation form",
                         "    Reports/         - Report generation page",
@@ -309,8 +309,8 @@ public static class DocumentationService
                         TableRow(table, "Id", "int (PK)", "Auto-increment primary key");
                         TableRow(table, "FacultyId", "nvarchar(450) FK", "References AspNetUsers");
                         TableRow(table, "SemesterId", "int (FK)", "References Semesters");
-                        TableRow(table, "SubjectCode", "nvarchar(20)", "e.g., IT 101");
-                        TableRow(table, "SubjectName", "nvarchar(200)", "e.g., Intro to Computing");
+                        TableRow(table, "CourseCode", "nvarchar(20)", "e.g., IT 101");
+                        TableRow(table, "CourseTitle", "nvarchar(200)", "e.g., Intro to Computing");
                         TableRow(table, "Section", "nvarchar(20)", "e.g., BSIT 1A");
                     });
 
@@ -411,7 +411,7 @@ public static class DocumentationService
                     {
                         table.ColumnsDefinition(c => { c.RelativeColumn(1); c.RelativeColumn(3); });
                         TableHeader(table, "Role", "Permissions");
-                        TableRow(table, "Admin", "Full system access: manage users, colleges, programs, semesters, evaluation periods, subject assignments, student enrollments, compute results, view reports, access dashboard");
+                        TableRow(table, "Admin", "Full system access: manage users, colleges, programs, semesters, evaluation periods, course assignments, student enrollments, compute results, view reports, access dashboard");
                         TableRow(table, "Dean", "View analytics dashboard, evaluate faculty (supervisor evaluation), view evaluation results, generate reports");
                         TableRow(table, "Program Chair", "Same as Dean - evaluate faculty in their college, view results and reports");
                         TableRow(table, "Faculty", "View personal evaluation dashboard with ratings, category breakdown radar chart, and performance history across semesters");
@@ -452,11 +452,11 @@ public static class DocumentationService
                     SubSection(col, "6.4 Managing Evaluation Periods");
                     Paragraph(col, "Navigate to Evaluation Periods. Create a new period by providing a name (e.g., Midterm Evaluation), selecting a semester, and setting start/end dates. Use the Open/Close buttons to control when evaluations can be submitted. Only open periods accept new evaluations. Click 'Compute' to calculate results after evaluations are submitted.");
 
-                    SubSection(col, "6.5 Subject Assignments");
-                    Paragraph(col, "Navigate to Subject Assignments. Select a faculty member, enter the subject code, name, and section, then click 'Assign Subject'. This creates a teaching assignment for the active semester. Click 'Enrollments' next to any subject to manage which students are enrolled.");
+                    SubSection(col, "6.5 Course Assignments");
+                    Paragraph(col, "Navigate to Course Assignments. Select a faculty member, enter the course code, name, and section, then click 'Assign Course'. This creates a teaching assignment for the active semester. Click 'Enrollments' next to any course to manage which students are enrolled.");
 
                     SubSection(col, "6.6 Student Enrollment");
-                    Paragraph(col, "From the Subject Assignments page, click 'Enrollments' for a subject. Select students from the dropdown and click 'Enroll'. Enrolled students will see this faculty-subject pair in their evaluation list when an evaluation period is open.");
+                    Paragraph(col, "From the Course Assignments page, click 'Enrollments' for a subject. Select students from the dropdown and click 'Enroll'. Enrolled students will see this faculty-course pair in their evaluation list when an evaluation period is open.");
 
                     SubSection(col, "6.7 Computing Results");
                     Paragraph(col, "After evaluations are submitted, go to Evaluation Periods and click 'Compute' for the desired period. The system calculates SET and SEF ratings separately using (Total Score / 75) x 100, with class-size weighting for SET per CMO Section 8.3. Results are viewable in the Evaluation Results page.");
@@ -477,9 +477,9 @@ public static class DocumentationService
 
                     BulletPoint(col, "Step 1: Create a New Semester - Go to Semesters and enter the new academic year (e.g., '2026-2027') and select the term (1st Semester, 2nd Semester, or Summer). Creating a new semester automatically sets it as the active semester. Previous semesters become inactive but their data is preserved.");
 
-                    BulletPoint(col, "Step 2: Assign Subjects to Faculty - Go to Subject Assignments. For each faculty member, assign their subjects for the new semester by entering the subject code (e.g., IT 101), subject name (e.g., Introduction to Computing), and section (e.g., BSIT 1A). Note: Subject assignments are per-semester, so even if a faculty teaches the same subject, it must be reassigned each semester.");
+                    BulletPoint(col, "Step 2: Assign Courses to Faculty - Go to Course Assignments. For each faculty member, assign their courses for the new semester by entering the course code (e.g., IT 101), subject name (e.g., Introduction to Computing), and section (e.g., BSIT 1A). Note: Course assignments are per-semester, so even if a faculty teaches the same course, it must be reassigned each semester.");
 
-                    BulletPoint(col, "Step 3: Enroll Students - For each subject assignment, click 'Enrollments' and add the students who are enrolled in that class. Only enrolled students will be able to evaluate the corresponding faculty member for that subject.");
+                    BulletPoint(col, "Step 3: Enroll Students - For each course assignment, click 'Enrollments' and add the students who are enrolled in that class. Only enrolled students will be able to evaluate the corresponding faculty member for that subject.");
 
                     BulletPoint(col, "Step 4: Create an Evaluation Period - Go to Evaluation Periods and create a new period (e.g., 'Midterm Evaluation' or 'Final Evaluation'). Select the new semester, set the start and end dates, then click 'Create Period'. The period starts in 'Pending' status.");
 
@@ -502,7 +502,7 @@ public static class DocumentationService
                         table.ColumnsDefinition(c => { c.ConstantColumn(30); c.RelativeColumn(1.2f); c.RelativeColumn(2); });
                         TableHeader(table, "#", "Step", "Description");
                         TableRow(table, "1", "Create Semester", "Set up the new academic year and term");
-                        TableRow(table, "2", "Assign Subjects", "Link faculty to their subjects and sections");
+                        TableRow(table, "2", "Assign Courses", "Link faculty to their courses and sections");
                         TableRow(table, "3", "Enroll Students", "Add students to each faculty-subject class");
                         TableRow(table, "4", "Create Period", "Define the evaluation period with dates");
                         TableRow(table, "5", "Open Period", "Allow students and supervisors to submit evaluations");
@@ -529,8 +529,8 @@ public static class DocumentationService
                     Paragraph(col, "Data must be imported in the correct order due to dependencies between records:");
                     BulletPoint(col, "Step 1: Colleges & Programs — Creates the institutional structure (colleges and their academic programs).");
                     BulletPoint(col, "Step 2: Users — Creates user accounts for Deans, Program Chairs, Faculty, and Students. Each user is assigned to a college and program via college/program codes.");
-                    BulletPoint(col, "Step 3: Subject Assignments — Assigns subjects to faculty for the active semester. A semester must be created and set as active before importing.");
-                    BulletPoint(col, "Step 4: Student Enrollments — Links students to specific subject-section combinations. Subjects must be imported first.");
+                    BulletPoint(col, "Step 3: Course Assignments — Assigns subjects to faculty for the active semester. A semester must be created and set as active before importing.");
+                    BulletPoint(col, "Step 4: Student Enrollments — Links students to specific subject-section combinations. Course assignments must be imported first.");
 
                     SubSection(col, "CSV File Formats");
 
@@ -542,20 +542,20 @@ public static class DocumentationService
                     BulletPoint(col, "Columns: Email, FirstName, LastName, Role, Password, EmployeeNumber, StudentNumber, CollegeCode, ProgramCode");
                     BulletPoint(col, "Valid roles: Dean, ProgramChair, Faculty, Student. Leave EmployeeNumber or StudentNumber blank if not applicable.");
 
-                    Paragraph(col, "Subjects CSV:");
-                    BulletPoint(col, "Columns: FacultyEmail, SubjectCode, SubjectName, Section");
-                    BulletPoint(col, "Subjects are assigned to the currently active semester.");
+                    Paragraph(col, "Course Assignments CSV:");
+                    BulletPoint(col, "Columns: FacultyEmail, CourseCode, CourseTitle, Section");
+                    BulletPoint(col, "Courses are assigned to the currently active semester.");
 
                     Paragraph(col, "Enrollments CSV:");
-                    BulletPoint(col, "Columns: StudentEmail, SubjectCode, Section");
-                    BulletPoint(col, "Matches students to subjects by code and section in the active semester.");
+                    BulletPoint(col, "Columns: StudentEmail, CourseCode, Section");
+                    BulletPoint(col, "Matches students to courses by code and section in the active semester.");
 
                     SubSection(col, "Quick Demo Setup");
                     Paragraph(col, "For demonstration purposes, a 'Quick Demo Setup' button is available on the Batch Import page. Clicking this single button automatically:");
                     BulletPoint(col, "Creates 5 colleges and 4 academic programs");
                     BulletPoint(col, "Creates 32 user accounts (1 dean, 1 program chair, 10 faculty, 20 students)");
                     BulletPoint(col, "Creates 3 semesters (2024-2025 1st & 2nd, 2025-2026 1st)");
-                    BulletPoint(col, "Assigns 14 subjects to faculty and enrolls 55 students");
+                    BulletPoint(col, "Assigns 14 courses to faculty and enrolls 55 students");
                     BulletPoint(col, "Creates 3 evaluation periods and generates sample evaluations with varied ratings");
                     BulletPoint(col, "Computes all results — dashboard, charts, and reports are immediately available");
 
@@ -708,7 +708,7 @@ public static class DocumentationService
                     });
 
                     SubSection(col, "Sample Students (20)");
-                    Paragraph(col, "20 students are enrolled across various subjects. Example: juan.delacruz@isuc.edu.ph (Juan Dela Cruz), mariaclara.reyes@isuc.edu.ph (Maria Clara Reyes), etc. All use password Pass@123.");
+                    Paragraph(col, "20 students are enrolled across various courses. Example: juan.delacruz@isuc.edu.ph (Juan Dela Cruz), mariaclara.reyes@isuc.edu.ph (Maria Clara Reyes), etc. All use password Pass@123.");
 
                     SubSection(col, "Demo Data Summary (via Quick Demo Setup)");
                     BulletPoint(col, "5 Colleges: CCSICT, CAS, CED, COE, CA");
@@ -716,7 +716,7 @@ public static class DocumentationService
                     BulletPoint(col, "32 Users: 1 Admin, 1 Dean, 1 Program Chair, 10 Faculty, 20 Students");
                     BulletPoint(col, "3 Semesters: 2024-2025 (1st & 2nd), 2025-2026 (1st - Active)");
                     BulletPoint(col, "3 Evaluation Periods: 2 closed (past), 1 open (current)");
-                    BulletPoint(col, "14 Subject assignments with 55 student enrollments");
+                    BulletPoint(col, "14 Course assignments with 55 student enrollments");
                     BulletPoint(col, "200+ evaluation submissions with varied ratings across semesters");
                     BulletPoint(col, "30 computed faculty results (10 faculty x 3 periods) for trend analysis");
                     Paragraph(col, "All demo data is created via the 'Quick Demo Setup' button on the Batch Import page, or by manually uploading the sample CSV files.");

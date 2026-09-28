@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Models;
 using FacultyEvalSystem.Services;
@@ -12,8 +12,6 @@ public static class DbSeeder
         var context = services.GetRequiredService<ApplicationDbContext>();
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-        var config = services.GetRequiredService<IConfiguration>();
-        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
         await context.Database.MigrateAsync();
 
@@ -211,48 +209,14 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        await SeedDemoDataAsync(services, config, logger);
-    }
+        // The nine colleges with their programs, and the five semesters
+        // (1st Semester, A.Y. 2026-2027 current). Faculty and students are not
+        // seeded: they come from the Faculty Workload Summary and the Registrar's
+        // masterlist, uploaded by AA Staff.
+        var import = services.GetRequiredService<DataImportService>();
+        await import.EnsureCatalogAsync();
 
-    /// <summary>
-    /// On a first run against an empty database, build the demonstration dataset so
-    /// the system is immediately usable. Controlled by DemoData:SeedOnFirstRun in
-    /// configuration — set it to false on any installation holding real records.
-    /// </summary>
-    private static async Task SeedDemoDataAsync(
-        IServiceProvider services, IConfiguration config, ILogger logger)
-    {
-        if (!config.GetValue("DemoData:SeedOnFirstRun", false))
-            return;
-
-        var seeder = services.GetRequiredService<DemoDataSeeder>();
-
-        if (await seeder.HasDemoDataAsync())
-        {
-            logger.LogInformation("Demo data already present; skipping first-run seed.");
-            return;
-        }
-
-        if (!seeder.SamplesAvailable())
-        {
-            logger.LogWarning("DemoData:SeedOnFirstRun is enabled but the sample CSVs "
-                            + "under wwwroot/samples are missing; skipping first-run seed.");
-            return;
-        }
-
-        logger.LogInformation("Empty database detected — seeding demonstration data. "
-                            + "This runs once and takes a moment.");
-
-        try
-        {
-            var log = await seeder.SeedAsync();
-            logger.LogInformation("Demo data seeded: {Steps}", string.Join(" | ", log));
-        }
-        catch (Exception ex)
-        {
-            // A failed demo seed must not stop the application from starting.
-            logger.LogError(ex, "Seeding demonstration data failed. The application will "
-                              + "continue; use Batch Import > Quick Demo Setup to retry.");
-        }
+        if (!await context.Semesters.AnyAsync())
+            await import.EnsureSemestersAsync();
     }
 }

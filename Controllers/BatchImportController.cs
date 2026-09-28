@@ -8,25 +8,130 @@ using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,AAStaff")]
 public class BatchImportController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly EvaluationService _evalService;
+    private readonly DataImportService _import;
 
-    public BatchImportController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService)
+    public BatchImportController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
+        EvaluationService evalService, DataImportService import)
     {
         _db = db;
         _userManager = userManager;
         _evalService = evalService;
+        _import = import;
     }
 
-    public IActionResult Index()
+    public async Task<IActionResult> Index()
     {
+        var active = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+        ViewBag.ActiveSemester = active;
+        ViewBag.DefaultPassword = _import.DefaultPassword;
+        if (active is not null)
+        {
+            ViewBag.StudentCourseCount = await _db.StudentCourses.CountAsync(sc => sc.SemesterId == active.Id);
+            ViewBag.StudentCount = await _db.StudentCourses.Where(sc => sc.SemesterId == active.Id)
+                .Select(sc => sc.StudentId).Distinct().CountAsync();
+            ViewBag.AssignmentCount = await _db.FacultySubjects.CountAsync(fs => fs.SemesterId == active.Id);
+        }
         return View();
     }
 
+    /// <summary>
+    /// Student Import: the Registrar's masterlist of students and their enrolled
+    /// Course Codes. Students are matched on Name + Program; new students get an
+    /// account with the system's default password.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(50_000_000)]
+    public async Task<IActionResult> ImportRegistrar(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+        {
+            TempData["Error"] = "Please choose the Registrar's masterlist (.xlsx or .csv).";
+            return RedirectToAction(nameof(Index), null, "registrar");
+        }
+
+        var semester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+        if (semester is null)
+        {
+            TempData["Error"] = "No active semester. Please create one first.";
+            return RedirectToAction(nameof(Index), null, "registrar");
+        }
+
+        try
+        {
+            await using var stream = new MemoryStream();
+            await file.CopyToAsync(stream);
+            stream.Position = 0;
+
+            var report = await _import.ImportRegistrarMasterlistAsync(stream, file.FileName, semester);
+            var link = await _import.LinkEnrollmentsAsync(semester.Id);
+            await _import.InferProgramsAsync(semester.Id);
+
+            TempData["Success"] = $"Registrar masterlist imported for {semester.DisplayName}: "
+                + $"{report.Created} student account(s) created (default password), {report.Updated} existing student row(s) matched by name and program, "
+                + $"{report.CoursesRecorded} enrolled Course Code(s) recorded. "
+                + $"{link.EnrollmentsCreated} linked to their instructor; "
+                + $"{link.CoursesWithSeveralInstructors} course(s) are taught by several faculty — those students choose their instructor when evaluating.";
+            if (report.Problems.Count > 0) TempData["Error"] = report.ProblemSummary();
+        }
+        catch (InvalidDataException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index), null, "registrar");
+    }
+
+    /// <summary>The Faculty Workload Summary: faculty, their college and designation, and the Course Codes they teach.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(50_000_000)]
+    public async Task<IActionResult> ImportWorkload(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+        {
+            TempData["Error"] = "Please choose the Faculty Workload Summary (.xlsx).";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var semester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+        if (semester is null)
+        {
+            TempData["Error"] = "No active semester. Please create one first.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        try
+        {
+            await using var stream = new MemoryStream();
+            await file.CopyToAsync(stream);
+            stream.Position = 0;
+
+            await _import.EnsureCatalogAsync();
+            var report = await _import.ImportFacultyWorkloadAsync(stream, semester);
+            await _import.InferProgramsAsync(semester.Id);
+            var link = await _import.LinkEnrollmentsAsync(semester.Id);
+
+            TempData["Success"] = $"Faculty Workload Summary imported for {semester.DisplayName}: "
+                + $"{report.Created} faculty account(s) created (default password), {report.Updated} updated, "
+                + $"{report.CoursesRecorded} course assignment(s) recorded; {link.EnrollmentsCreated} student enrollment(s) linked.";
+            if (report.Problems.Count > 0) TempData["Error"] = report.ProblemSummary();
+        }
+        catch (InvalidDataException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> ImportColleges(IFormFile file)
     {
@@ -81,6 +186,7 @@ public class BatchImportController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> ImportUsers(IFormFile file)
     {
@@ -173,6 +279,7 @@ public class BatchImportController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> ImportSubjects(IFormFile file)
     {
@@ -196,11 +303,12 @@ public class BatchImportController : Controller
 
         foreach (var fields in lines.Skip(1))
         {
-            // FacultyEmail,SubjectCode,SubjectName,Section
+            // FacultyEmail,CourseCode,CourseTitle,Section
             if (fields.Length < 4) continue;
 
             var facultyEmail = fields[0].Trim();
-            var subjectCode = fields[1].Trim();
+            var subjectCode = CourseCodes.Clean(fields[1]);
+            var courseKey = CourseCodes.Key(subjectCode);
             var subjectName = fields[2].Trim();
             var section = fields[3].Trim();
 
@@ -208,7 +316,7 @@ public class BatchImportController : Controller
             if (faculty is null) { skipped++; continue; }
 
             var exists = await _db.FacultySubjects.AnyAsync(s =>
-                s.FacultyId == faculty.Id && s.SubjectCode == subjectCode &&
+                s.FacultyId == faculty.Id && s.CourseKey == courseKey &&
                 s.Section == section && s.SemesterId == activeSemester.Id);
 
             if (exists) { skipped++; continue; }
@@ -217,18 +325,20 @@ public class BatchImportController : Controller
             {
                 FacultyId = faculty.Id,
                 SemesterId = activeSemester.Id,
-                SubjectCode = subjectCode,
-                SubjectName = subjectName,
+                CourseCode = subjectCode,
+                CourseKey = courseKey,
+                CourseTitle = string.IsNullOrWhiteSpace(subjectName) ? null : subjectName,
                 Section = section
             });
             created++;
         }
 
         await _db.SaveChangesAsync();
-        TempData["Success"] = $"Subjects imported for {activeSemester.DisplayName}: {created} created, {skipped} skipped.";
+        TempData["Success"] = $"Course assignments imported for {activeSemester.DisplayName}: {created} created, {skipped} skipped.";
         return RedirectToAction(nameof(Index));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> ImportEnrollments(IFormFile file)
     {
@@ -252,18 +362,18 @@ public class BatchImportController : Controller
 
         foreach (var fields in lines.Skip(1))
         {
-            // StudentEmail,SubjectCode,Section
+            // StudentEmail,CourseCode,Section
             if (fields.Length < 3) continue;
 
             var studentEmail = fields[0].Trim();
-            var subjectCode = fields[1].Trim();
+            var courseKey = CourseCodes.Key(fields[1]);
             var section = fields[2].Trim();
 
             var student = await _userManager.FindByEmailAsync(studentEmail);
             if (student is null) { skipped++; continue; }
 
             var subject = await _db.FacultySubjects.FirstOrDefaultAsync(s =>
-                s.SubjectCode == subjectCode && s.Section == section && s.SemesterId == activeSemester.Id);
+                s.CourseKey == courseKey && s.Section == section && s.SemesterId == activeSemester.Id);
 
             if (subject is null) { skipped++; continue; }
 
@@ -284,21 +394,7 @@ public class BatchImportController : Controller
         TempData["Success"] = $"Enrollments imported: {created} created, {skipped} skipped.";
         return RedirectToAction(nameof(Index));
     }
-    [HttpPost]
-    public async Task<IActionResult> QuickDemoSetup([FromServices] DemoDataSeeder seeder)
-    {
-        if (await seeder.HasDemoDataAsync())
-        {
-            TempData["Error"] = "Demo data already exists. Drop the database and restart to run setup again.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        var log = await seeder.SeedAsync();
-        TempData["Success"] = "Demo setup complete: " + string.Join(" → ", log);
-        return RedirectToAction(nameof(Index));
-    }
-
-
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> GenerateSampleEvaluations([FromServices] DemoDataSeeder seeder)
     {

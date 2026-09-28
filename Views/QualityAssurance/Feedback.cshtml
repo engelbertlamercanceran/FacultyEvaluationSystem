@@ -13,7 +13,7 @@
 }
 
 <div class="alert alert-light border small py-2">
-    Evaluations are anonymous. Comments are shown against the faculty member and subject
+    Evaluations are anonymous. Comments are shown against the faculty member and course
     they concern &mdash; never against the person who wrote them.
 </div>
 
@@ -85,7 +85,7 @@
                 <thead>
                     <tr>
                         <th style="width:22%;">Faculty</th>
-                        <th style="width:14%;">Subject</th>
+                        <th style="width:14%;">Course</th>
                         <th style="width:10%;">From</th>
                         <th>Comment</th>
                         <th style="width:14%;">Period</th>
@@ -103,9 +103,9 @@
                             </td>
                             <td>
                                 <small>
-                                    @if (f.SubjectCode is not null)
+                                    @if (f.CourseCode is not null)
                                     {
-                                        @f.SubjectCode
+                                        @f.CourseCode
                                         @if (!string.IsNullOrEmpty(f.Section))
                                         {
                                             <br />

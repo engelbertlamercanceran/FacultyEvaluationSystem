@@ -1,4 +1,4 @@
-FacultyEmail,SubjectCode,SubjectName,Section,ProgramCode
+FacultyEmail,CourseCode,CourseTitle,Section,ProgramCode
 jose.santos@isuc.edu.ph,IT 101,Introduction to Computing,BSIT 1A,BSIT
 jose.santos@isuc.edu.ph,IT 102,Computer Programming 1,BSIT 1B,BSIT
 anna.cruz@isuc.edu.ph,IT 201,Data Structures and Algorithms,BSIT 2A,BSIT

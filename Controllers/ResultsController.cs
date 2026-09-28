@@ -18,7 +18,9 @@ public class ResultsController : Controller
 
     public async Task<IActionResult> Index(int? periodId)
     {
-        var periods = await _db.EvaluationPeriods.Include(p => p.Semester).OrderByDescending(p => p.Id).ToListAsync();
+        var periods = await _db.EvaluationPeriods.Include(p => p.Semester)
+            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id).ToListAsync();
+        periodId ??= periods.FirstOrDefault()?.Id;
         ViewBag.Periods = new SelectList(periods, "Id", "DisplayName", periodId);
 
         var results = periodId.HasValue
@@ -26,7 +28,7 @@ public class ResultsController : Controller
                 .Include(r => r.Faculty).ThenInclude(f => f.College)
                 .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
                 .Where(r => r.EvaluationPeriodId == periodId.Value)
-                .OrderByDescending(r => r.StudentRating)
+                .OrderBy(r => r.Faculty.LastName).ThenBy(r => r.Faculty.FirstName)
                 .ToListAsync()
             : [];
 

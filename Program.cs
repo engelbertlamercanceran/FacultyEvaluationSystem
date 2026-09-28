@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Data;
 using FacultyEvalSystem.Models;
@@ -35,8 +35,15 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped<EvaluationService>();
 builder.Services.AddScoped<EvaluatorAssignmentService>();
 builder.Services.AddScoped<DemoDataSeeder>();
+builder.Services.AddScoped<DataImportService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<FacultyEvalSystem.Filters.RequirePasswordChangeFilter>();
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+    options.Filters.AddService<FacultyEvalSystem.Filters.RequirePasswordChangeFilter>());
+
+// The Registrar's masterlist can be large
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 50_000_000);
 
 var app = builder.Build();
 

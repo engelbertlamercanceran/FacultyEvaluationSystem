@@ -181,7 +181,7 @@ public class DemoDataSeeder
                 var programCode = fields.Length > 4 ? fields[4].Trim() : "";
 
                 if (await _db.FacultySubjects.AnyAsync(s => s.FacultyId == faculty.Id
-                        && s.SubjectCode == subjectCode && s.Section == section
+                        && s.CourseCode == subjectCode && s.Section == section
                         && s.SemesterId == semester.Id))
                     continue;
 
@@ -192,8 +192,9 @@ public class DemoDataSeeder
                 {
                     FacultyId = faculty.Id,
                     SemesterId = semester.Id,
-                    SubjectCode = subjectCode,
-                    SubjectName = fields[2].Trim(),
+                    CourseCode = subjectCode,
+                    CourseKey = CourseCodes.Key(subjectCode),
+                    CourseTitle = fields[2].Trim(),
                     Section = section,
                     ProgramId = program?.Id,
                     TeachingMemoNumber = $"TM-{semester.AcademicYear.Split('-')[0]}-{semester.Id:D3}"
@@ -218,7 +219,7 @@ public class DemoDataSeeder
                 if (student is null) continue;
 
                 var subject = await _db.FacultySubjects.FirstOrDefaultAsync(s =>
-                    s.SubjectCode == fields[1].Trim() && s.Section == fields[2].Trim()
+                    s.CourseCode == fields[1].Trim() && s.Section == fields[2].Trim()
                     && s.SemesterId == semester.Id);
                 if (subject is null) continue;
 

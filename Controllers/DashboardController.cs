@@ -82,18 +82,19 @@ public class DashboardController : Controller
                 .ToListAsync()
             : [];
 
-        // College performance (based on SET rating)
-        var collegePerf = results
-            .Where(r => r.Faculty.College is not null)
-            .GroupBy(r => r.Faculty.College!)
-            .Select(g => new CollegePerformance
+        // College performance (based on SET rating) — all nine colleges, alphabetically
+        var collegePerf = (await _db.Colleges.OrderBy(c => c.Name).ToListAsync())
+            .Select(c =>
             {
-                CollegeName = g.Key.Name,
-                CollegeCode = g.Key.Code,
-                AverageRating = AverageSet(g),
-                FacultyCount = g.Count()
+                var g = results.Where(r => r.Faculty.CollegeId == c.Id).ToList();
+                return new CollegePerformance
+                {
+                    CollegeName = c.Name,
+                    CollegeCode = c.Code,
+                    AverageRating = AverageSet(g),
+                    FacultyCount = g.Count
+                };
             })
-            .OrderByDescending(c => c.AverageRating)
             .ToList();
 
         // DA-01: history is limited to the five most recent semesters
@@ -116,7 +117,7 @@ public class DashboardController : Controller
             .OrderBy(g => g.Key.SortKey)
             .Select(g => new SemesterTrend
             {
-                Semester = g.Key.Term + ", " + g.Key.AcademicYear,
+                Semester = g.Key.DisplayName,
                 SortKey = g.Key.SortKey,
                 AverageRating = AverageSet(g),
                 TotalEvaluations = g.Sum(r => r.StudentRespondents + r.SupervisorRespondents)
@@ -163,7 +164,7 @@ public class DashboardController : Controller
 
         // Oldest first, so the chart reads left to right
         var semesters = recentSemesters.OrderBy(s => s.SortKey).ToList();
-        analysis.SemesterLabels = semesters.Select(s => $"{s.Term} {s.AcademicYear}").ToList();
+        analysis.SemesterLabels = semesters.Select(s => s.DisplayName).ToList();
 
         // Institution-wide average per semester
         analysis.InstitutionAverages = semesters
@@ -178,7 +179,7 @@ public class DashboardController : Controller
         analysis.CollegeSeries = results
             .Where(r => r.Faculty.College is not null)
             .GroupBy(r => r.Faculty.College!)
-            .OrderBy(g => g.Key.Code)
+            .OrderBy(g => g.Key.Name)
             .Select(g =>
             {
                 var values = semesters
@@ -307,7 +308,7 @@ public class DashboardController : Controller
                 var trendData = allResults
                     .GroupBy(r => r.EvaluationPeriod.Semester)
                     .OrderBy(g => g.Key.SortKey)
-                    .Select(g => new { Label = g.Key.Term + " " + g.Key.AcademicYear, Avg = AverageSet(g) })
+                    .Select(g => new { Label = g.Key.DisplayName, Avg = AverageSet(g) })
                     .ToList();
 
                 return Json(new { labels = trendData.Select(t => t.Label), data = trendData.Select(t => t.Avg) });

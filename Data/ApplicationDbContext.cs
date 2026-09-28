@@ -20,6 +20,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EvaluationResponse> EvaluationResponses => Set<EvaluationResponse>();
     public DbSet<EvaluationResult> EvaluationResults => Set<EvaluationResult>();
     public DbSet<DevelopmentPlan> DevelopmentPlans => Set<DevelopmentPlan>();
+    public DbSet<StudentCourse> StudentCourses => Set<StudentCourse>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -83,6 +85,37 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<DevelopmentPlan>()
             .HasIndex(d => new { d.FacultyId, d.EvaluationPeriodId })
             .IsUnique();
+
+        // Course codes are matched on their normalised key
+        builder.Entity<FacultySubject>()
+            .HasIndex(fs => new { fs.SemesterId, fs.CourseKey });
+
+        // Registrar masterlist: one row per student per course per semester
+        builder.Entity<StudentCourse>()
+            .HasOne(sc => sc.Student)
+            .WithMany()
+            .HasForeignKey(sc => sc.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<StudentCourse>()
+            .HasIndex(sc => new { sc.StudentId, sc.SemesterId, sc.CourseKey })
+            .IsUnique();
+
+        builder.Entity<StudentCourse>()
+            .HasIndex(sc => new { sc.SemesterId, sc.CourseKey });
+
+        builder.Entity<StudentCourse>()
+            .Property(sc => sc.Units)
+            .HasPrecision(5, 2);
+
+        builder.Entity<Notification>()
+            .HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Notification>()
+            .HasIndex(n => new { n.UserId, n.ReadAt });
 
         // Unique: one evaluation per student per faculty per subject per period
         builder.Entity<Evaluation>()

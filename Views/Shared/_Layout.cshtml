@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<FacultyEvalSystem.Models.ApplicationUser> SignInManager
 @inject UserManager<FacultyEvalSystem.Models.ApplicationUser> UserManager
+@inject FacultyEvalSystem.Services.NotificationService Notifications
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,6 +68,10 @@
         var currentUser = SignInManager.IsSignedIn(User) ? await UserManager.GetUserAsync(User) : null;
         var roles = currentUser is not null ? await UserManager.GetRolesAsync(currentUser) : new List<string>();
         var role = roles.FirstOrDefault() ?? "User";
+        var unreadCount = currentUser is not null ? await Notifications.UnreadCountAsync(currentUser.Id) : 0;
+        var recentNotifications = currentUser is not null
+            ? await Notifications.RecentAsync(currentUser.Id, 6)
+            : new List<FacultyEvalSystem.Models.Notification>();
     }
     @if (currentUser is not null)
     {
@@ -101,11 +106,11 @@
                     <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Criteria">Evaluation Criteria</a>
                     <a class="nav-link" asp-controller="TeachingMemo" asp-action="Index">Teaching Memo</a>
-                    <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Subject Assignments</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Course Assignments</a>
                     <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Batch Import</a>
                 }
 
-                @* AAS-01/02/03: AA Staff own the Teaching Memo, subject assignment
+                @* AAS-01/02/03: AA Staff own the Teaching Memo, course assignment
                    and the stage-by-stage opening of the evaluation. *@
                 if (role == "AAStaff")
                 {
@@ -113,6 +118,7 @@
                     <a class="nav-link" asp-controller="TeachingMemo" asp-action="Index">Teaching Memo</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Faculty Teaching Load</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Schedule</a>
+                    <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Faculty &amp; Student Import</a>
                 }
 
                 @* AA-01/02 *@
@@ -182,7 +188,43 @@
         <div class="main-content">
             <div class="top-bar">
                 <h4 class="mb-0">@ViewData["Title"]</h4>
-                <small class="text-muted">@DateTime.Now.ToString("MMMM dd, yyyy")</small>
+                <div class="d-flex align-items-center gap-3">
+                    <small class="text-muted">@DateTime.Now.ToString("MMMM dd, yyyy")</small>
+                    @* In-app notifications only — no e-mail is sent *@
+                    <div class="dropdown">
+                        <button class="btn btn-light btn-sm position-relative border" type="button"
+                                data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zm.995-14.901a1 1 0 1 0-1.99 0A5.002 5.002 0 0 0 3 6c0 1.098-.5 6-2 7h14c-1.5-1-2-5.902-2-7 0-2.42-1.72-4.44-4.005-4.901z"/>
+                            </svg>
+                            @if (unreadCount > 0)
+                            {
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:10px;">
+                                    @(unreadCount > 99 ? "99+" : unreadCount.ToString())
+                                </span>
+                            }
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end p-0" style="width:360px;">
+                            <div class="px-3 py-2 border-bottom d-flex justify-content-between">
+                                <strong style="font-size:14px;">Notifications</strong>
+                                <small class="text-muted">@unreadCount unread</small>
+                            </div>
+                            @foreach (var n in recentNotifications)
+                            {
+                                <a class="dropdown-item py-2 @(n.IsRead ? "" : "fw-semibold")" style="white-space:normal; font-size:13px;"
+                                   asp-controller="Notifications" asp-action="Open" asp-route-id="@n.Id">
+                                    @n.Title<br />
+                                    <small class="text-muted fw-normal">@n.CreatedAt.ToString("MMM dd, hh:mm tt")</small>
+                                </a>
+                            }
+                            @if (!recentNotifications.Any())
+                            {
+                                <div class="px-3 py-3 text-muted small">No notifications yet.</div>
+                            }
+                            <a class="dropdown-item text-center border-top small py-2" asp-controller="Notifications" asp-action="Index">View all</a>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             @if (TempData["Success"] is string success)

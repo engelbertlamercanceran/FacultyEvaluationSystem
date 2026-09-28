@@ -55,7 +55,7 @@ public class EvaluationPeriod
     };
 
     public string DisplayName => Semester is not null
-        ? $"{Name} — {Semester.Term}, {Semester.AcademicYear}"
+        ? $"{Name} — {Semester.DisplayName}"
         : Name;
 
     public static string StageLabel(EvaluationStage stage) => stage switch

@@ -5,9 +5,7 @@
     <div class="card-body">
         <form method="get" id="periodForm">
             <label class="form-label">Evaluation Period</label>
-            <select name="periodId" asp-items="(SelectList)ViewBag.Periods" class="form-select" onchange="this.form.submit()">
-                <option value="">-- Select Period --</option>
-            </select>
+            <select name="periodId" asp-items="(SelectList)ViewBag.Periods" class="form-select" onchange="this.form.submit()"></select>
         </form>
     </div>
 </div>
@@ -25,7 +23,6 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>#</th>
                         <th>Faculty Name</th>
                         <th>College</th>
                         <th class="text-center">SET Rating</th>
@@ -41,8 +38,7 @@
                     {
                         var r = Model[i];
                         <tr>
-                            <td>@(i + 1)</td>
-                            <td>@r.Faculty.FullName</td>
+                            <td>@r.Faculty.SortName</td>
                             <td>@(r.Faculty.College?.Code ?? "N/A")</td>
                             <td class="text-center"><strong>@r.StudentRating.ToString("F2")</strong></td>
                             <td class="text-center">@r.StudentRespondents</td>

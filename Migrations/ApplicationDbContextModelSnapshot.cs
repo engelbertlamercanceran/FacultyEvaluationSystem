@@ -98,6 +98,13 @@ namespace FacultyEvalSystem.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("bit");
+
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -122,6 +129,10 @@ namespace FacultyEvalSystem.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StudentNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Suffix")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
@@ -197,8 +208,19 @@ namespace FacultyEvalSystem.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("CreatedById")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("CreatedByRole")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<int>("EvaluationPeriodId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("FacultyEditedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("FacultyId")
                         .IsRequired()
@@ -206,6 +228,17 @@ namespace FacultyEvalSystem.Migrations
 
                     b.Property<DateTime?>("FacultySubmittedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FinalizedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FinalizedById")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ProgramChairId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("ProposedActivities")
                         .HasMaxLength(2000)
@@ -456,6 +489,20 @@ namespace FacultyEvalSystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CourseCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CourseKey")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CourseTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("FacultyId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -470,16 +517,6 @@ namespace FacultyEvalSystem.Migrations
                     b.Property<int>("SemesterId")
                         .HasColumnType("int");
 
-                    b.Property<string>("SubjectCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("SubjectName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("TeachingMemoNumber")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -490,9 +527,47 @@ namespace FacultyEvalSystem.Migrations
 
                     b.HasIndex("ProgramId");
 
-                    b.HasIndex("SemesterId");
+                    b.HasIndex("SemesterId", "CourseKey");
 
                     b.ToTable("FacultySubjects");
+                });
+
+            modelBuilder.Entity("FacultyEvalSystem.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Link")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ReadAt");
+
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("FacultyEvalSystem.Models.Semester", b =>
@@ -524,6 +599,45 @@ namespace FacultyEvalSystem.Migrations
                     b.HasIndex("SortKey");
 
                     b.ToTable("Semesters");
+                });
+
+            modelBuilder.Entity("FacultyEvalSystem.Models.StudentCourse", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CourseCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CourseKey")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<decimal?>("Units")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterId", "CourseKey");
+
+                    b.HasIndex("StudentId", "SemesterId", "CourseKey")
+                        .IsUnique();
+
+                    b.ToTable("StudentCourses");
                 });
 
             modelBuilder.Entity("FacultyEvalSystem.Models.StudentEnrollment", b =>
@@ -852,6 +966,36 @@ namespace FacultyEvalSystem.Migrations
                     b.Navigation("Program");
 
                     b.Navigation("Semester");
+                });
+
+            modelBuilder.Entity("FacultyEvalSystem.Models.Notification", b =>
+                {
+                    b.HasOne("FacultyEvalSystem.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FacultyEvalSystem.Models.StudentCourse", b =>
+                {
+                    b.HasOne("FacultyEvalSystem.Models.Semester", "Semester")
+                        .WithMany()
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FacultyEvalSystem.Models.ApplicationUser", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Semester");
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("FacultyEvalSystem.Models.StudentEnrollment", b =>

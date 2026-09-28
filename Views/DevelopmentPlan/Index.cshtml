@@ -1,8 +1,7 @@
 @using FacultyEvalSystem.Models
-@model List<EvaluationResult>
+@model List<FacultyEvalSystem.Controllers.DevelopmentPlanController.PlanItem>
 @{
     ViewData["Title"] = "My Reports & FEDAF";
-    var plans = (Dictionary<int, DevelopmentPlan>)ViewBag.Plans;
     var semesters = ViewBag.Semesters as List<Semester> ?? [];
     var search = ViewBag.Search as string;
     var selectedSemesterId = ViewBag.SelectedSemesterId as int?;
@@ -18,7 +17,7 @@
             <div class="col-md-5">
                 <label class="form-label small text-muted mb-1">Search past semesters</label>
                 <input name="search" value="@search" class="form-control form-control-sm"
-                       placeholder="e.g. 2024-2025, 1st Semester, Midterm" />
+                       placeholder="e.g. 2025-2026, 1st Semester" />
             </div>
             <div class="col-md-4">
                 <label class="form-label small text-muted mb-1">Or jump to a semester</label>
@@ -57,137 +56,185 @@
 {
     <div class="alert alert-info">
         @(totalRecords == 0
-            ? "No evaluation results available yet."
+            ? "No evaluation results or Development Plans yet."
             : "No records match your search. Try a different semester or reset the filter.")
     </div>
 }
 
-@foreach (var r in Model)
+@foreach (var item in Model)
 {
-    var plan = plans.GetValueOrDefault(r.EvaluationPeriodId);
+    var r = item.Result;
+    var plan = item.Plan;
+    var period = item.Period;
     var status = plan?.Status ?? FedafStatus.Draft;
     var canAcknowledge = plan is not null && status == FedafStatus.DevelopmentPlanEntered;
+    var canEdit = plan is not null && plan.FacultyCanEdit;
 
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-                <strong>@r.EvaluationPeriod.Semester.DisplayName</strong>
-                <span class="badge bg-secondary ms-2">@r.StudentDescriptiveRating</span>
+                <strong>@period.Semester.DisplayName</strong>
+                @if (r is not null)
+                {
+                    <span class="badge bg-secondary ms-2">@r.StudentDescriptiveRating</span>
+                }
             </div>
             <div>
-                <span class="text-muted me-3">SET: <strong>@r.StudentRating.ToString("F2")</strong></span>
-                <span class="text-muted">SEF: <strong>@r.SupervisorRating.ToString("F2")</strong></span>
+                @if (r is not null)
+                {
+                    <span class="text-muted me-3">SET: <strong>@r.StudentRating.ToString("F2")</strong></span>
+                    <span class="text-muted">SEF: <strong>@r.SupervisorRating.ToString("F2")</strong></span>
+                }
+                else
+                {
+                    <small class="text-muted">Results not yet computed</small>
+                }
             </div>
         </div>
         <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div class="stat-card" style="border-left-color:#17a2b8;">
-                        <p class="mb-1 small">SET Rating (Student)</p>
-                        <h4>@r.StudentRating.ToString("F2")</h4>
-                        <small class="text-muted">@r.StudentRespondents respondents</small>
+            @if (r is not null)
+            {
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="stat-card" style="border-left-color:#17a2b8;">
+                            <p class="mb-1 small">SET Rating (Student)</p>
+                            <h4>@r.StudentRating.ToString("F2")</h4>
+                            <small class="text-muted">@r.StudentRespondents respondents</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stat-card" style="border-left-color:#f0b429;">
+                            <p class="mb-1 small">SEF Rating (Supervisor)</p>
+                            <h4>@r.SupervisorRating.ToString("F2")</h4>
+                            <small class="text-muted">@r.SupervisorRespondents respondents</small>
+                        </div>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="stat-card" style="border-left-color:#f0b429;">
-                        <p class="mb-1 small">SEF Rating (Supervisor)</p>
-                        <h4>@r.SupervisorRating.ToString("F2")</h4>
-                        <small class="text-muted">@r.SupervisorRespondents respondents</small>
-                    </div>
-                </div>
-            </div>
+            }
 
-            <div class="d-flex gap-2 mb-3 align-items-center">
-                <button type="button" class="btn btn-outline-secondary btn-sm"
-                        onclick="showPreview('@Url.Action("IFER", "Reports", new { periodId = r.EvaluationPeriodId, preview = true })', 'IFER')">
-                    View IFER
-                </button>
-                <button type="button" class="btn btn-outline-info btn-sm"
-                        onclick="showPreview('@Url.Action("FEDAF", "Reports", new { periodId = r.EvaluationPeriodId, preview = true })', 'FEDAF')">
-                    View FEDAF
-                </button>
-                <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId"
-                   class="btn btn-link btn-sm text-muted">Download IFER</a>
-                <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@r.EvaluationPeriodId"
-                   class="btn btn-link btn-sm text-muted">Download FEDAF</a>
+            <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+                @if (r is not null)
+                {
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            onclick="showPreview('@Url.Action("IFER", "Reports", new { periodId = period.Id, preview = true })', 'IFER')">
+                        View IFER
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm"
+                            onclick="showPreview('@Url.Action("FEDAF", "Reports", new { periodId = period.Id, preview = true })', 'FEDAF')">
+                        View FEDAF
+                    </button>
+                    <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@period.Id"
+                       class="btn btn-link btn-sm text-muted">Download IFER</a>
+                    <a asp-controller="Reports" asp-action="FEDAF" asp-route-periodId="@period.Id"
+                       class="btn btn-link btn-sm text-muted">Download FEDAF</a>
+                }
                 <span class="ms-auto">
-                    <small class="text-muted me-1">FEDAF status:</small>
+                    <small class="text-muted me-1">Development Plan:</small>
                     <span class="badge @DevelopmentPlan.StatusBadgeClass(status)">@DevelopmentPlan.StatusLabel(status)</span>
                 </span>
             </div>
 
             <hr />
 
-            @* FC-01: read-only. The Development Plan is entered by the supervisor (PC-02). *@
             <h6>Development Plan (to be jointly accomplished by the Supervisor and Faculty)</h6>
-            <div class="row g-2 mb-3">
-                <div class="col-md-4">
-                    <div class="card h-100">
-                        <div class="card-header small">Areas for Improvement</div>
-                        <div class="card-body">
-                            <div class="form-control form-control-sm bg-light" style="min-height:100px;">
-                                @(plan?.AreasForImprovement ?? "Your supervisor will complete this.")
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card h-100">
-                        <div class="card-header small">Proposed Learning and Development Activities</div>
-                        <div class="card-body">
-                            <div class="form-control form-control-sm bg-light" style="min-height:100px;">
-                                @(plan?.ProposedActivities ?? "Your supervisor will complete this.")
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card h-100">
-                        <div class="card-header small">Action Plan</div>
-                        <div class="card-body">
-                            <div class="form-control form-control-sm bg-light" style="min-height:100px;">
-                                @(plan?.ActionPlan ?? "Your supervisor will complete this.")
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            @* FC-02: acknowledgement replaces the old Save button *@
-            <div class="border rounded p-3 bg-light">
-                @if (plan is not null && plan.IsAcknowledged)
-                {
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="badge bg-success">Acknowledged</span>
-                            <small class="text-muted ms-2">
-                                You acknowledged this FEDAF on @plan.AcknowledgedAt!.Value.ToString("MMMM dd, yyyy 'at' hh:mm tt").
-                            </small>
+            @if (plan is null)
+            {
+                <p class="text-muted small mb-0">
+                    Your Program Chair or Dean has not created a Development Plan for this period yet.
+                    You will receive a notification when they do.
+                </p>
+            }
+            else if (canEdit)
+            {
+                @* The faculty member may view and edit the plan until they acknowledge it *@
+                <form asp-action="FacultySave" method="post">
+                    <input type="hidden" name="evaluationPeriodId" value="@period.Id" />
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">Areas for Improvement</label>
+                            <textarea name="areasForImprovement" class="form-control form-control-sm" rows="5" maxlength="2000">@plan.AreasForImprovement</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Proposed Learning and Development Activities</label>
+                            <textarea name="proposedActivities" class="form-control form-control-sm" rows="5" maxlength="2000">@plan.ProposedActivities</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Action Plan</label>
+                            <textarea name="actionPlan" class="form-control form-control-sm" rows="5" maxlength="2000">@plan.ActionPlan</textarea>
                         </div>
                     </div>
-                }
-                else if (canAcknowledge)
-                {
-                    <p class="small fst-italic text-muted mb-2">
-                        I acknowledge that I have received and reviewed the faculty evaluation conducted for the
-                        period mentioned above. I understand that my acknowledgement below does not necessarily
-                        indicate agreement with the evaluation but confirms that I have been given the
-                        opportunity to discuss it with my supervisor.
-                    </p>
-                    <form asp-action="Acknowledge" method="post"
-                          onsubmit="return confirm('Acknowledge this FEDAF? This records the date and cannot be undone.');">
-                        <input type="hidden" name="evaluationPeriodId" value="@r.EvaluationPeriodId" />
-                        <button type="submit" class="btn btn-primary btn-sm">Acknowledge</button>
-                    </form>
-                }
-                else
-                {
-                    <small class="text-muted">
-                        This FEDAF is not ready for acknowledgement yet &mdash; your supervisor has not
-                        completed the Development Plan.
-                    </small>
-                }
-            </div>
+                    <button type="submit" class="btn btn-outline-primary btn-sm mb-3">Save My Changes</button>
+                    @if (plan.FacultyEditedAt is not null)
+                    {
+                        <small class="text-muted ms-2">Last edited by you @plan.FacultyEditedAt.Value.ToString("MMM dd, yyyy hh:mm tt")</small>
+                    }
+                </form>
+            }
+            else
+            {
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header small">Areas for Improvement</div>
+                            <div class="card-body">
+                                <div class="form-control form-control-sm bg-light" style="min-height:100px; white-space:pre-wrap;">@(plan.AreasForImprovement ?? "—")</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header small">Proposed Learning and Development Activities</div>
+                            <div class="card-body">
+                                <div class="form-control form-control-sm bg-light" style="min-height:100px; white-space:pre-wrap;">@(plan.ProposedActivities ?? "—")</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header small">Action Plan</div>
+                            <div class="card-body">
+                                <div class="form-control form-control-sm bg-light" style="min-height:100px; white-space:pre-wrap;">@(plan.ActionPlan ?? "—")</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (plan is not null)
+            {
+                <div class="border rounded p-3 bg-light">
+                    @if (plan.IsFinalized)
+                    {
+                        <span class="badge bg-success">Finalized</span>
+                        <small class="text-muted ms-2">
+                            Finalized on @plan.FinalizedAt!.Value.ToString("MMMM dd, yyyy"). This plan is locked and view-only.
+                        </small>
+                    }
+                    else if (plan.IsAcknowledged)
+                    {
+                        <span class="badge bg-warning text-dark">Acknowledged</span>
+                        <small class="text-muted ms-2">
+                            You acknowledged this plan on @plan.AcknowledgedAt!.Value.ToString("MMMM dd, yyyy 'at' hh:mm tt").
+                            It is now with your Program Chair for finalization.
+                        </small>
+                    }
+                    else if (canAcknowledge)
+                    {
+                        <p class="small fst-italic text-muted mb-2">
+                            I acknowledge that I have received and reviewed the faculty evaluation conducted for the
+                            period mentioned above. I understand that my acknowledgement below does not necessarily
+                            indicate agreement with the evaluation but confirms that I have been given the
+                            opportunity to discuss it with my supervisor.
+                        </p>
+                        <form asp-action="Acknowledge" method="post"
+                              onsubmit="return confirm('Acknowledge this Development Plan? You will no longer be able to edit it, and your Program Chair will be notified.');">
+                            <input type="hidden" name="evaluationPeriodId" value="@period.Id" />
+                            <button type="submit" class="btn btn-primary btn-sm">Acknowledge</button>
+                        </form>
+                    }
+                </div>
+            }
         </div>
     </div>
 }

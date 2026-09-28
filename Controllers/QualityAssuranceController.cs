@@ -66,7 +66,7 @@ public class QualityAssuranceController : Controller
                 FacultyName = e.Faculty.FirstName + " " + e.Faculty.LastName,
                 CollegeCode = e.Faculty.College != null ? e.Faculty.College.Code : null,
                 ProgramCode = e.Faculty.Program != null ? e.Faculty.Program.Code : null,
-                SubjectCode = e.FacultySubject != null ? e.FacultySubject.SubjectCode : null,
+                CourseCode = e.FacultySubject != null ? e.FacultySubject.CourseCode : null,
                 Section = e.FacultySubject != null ? e.FacultySubject.Section : null,
                 EvaluatorType = e.EvaluatorType,
                 Semester = e.EvaluationPeriod.Semester.Term + ", A.Y. " + e.EvaluationPeriod.Semester.AcademicYear,
@@ -102,22 +102,30 @@ public class QualityAssuranceController : Controller
                 .ToListAsync()
             : [];
 
-        var groups = results
-            .GroupBy(r => r.Faculty.College)
-            .Select(g => new CollegeSummaryGroup
+        var colleges = await _db.Colleges.OrderBy(c => c.Name).ToListAsync();
+
+        // All colleges are listed alphabetically, even one with no results yet
+        var buckets = colleges
+            .Select(c => (Name: c.Name, Code: c.Code, Items: results.Where(r => r.Faculty.CollegeId == c.Id).ToList()))
+            .ToList();
+
+        var unassigned = results.Where(r => r.Faculty.CollegeId is null).ToList();
+        if (unassigned.Count > 0) buckets.Add(("Unassigned college", "—", unassigned));
+
+        var groups = buckets
+            .Select(b => new CollegeSummaryGroup
             {
-                CollegeName = g.Key?.Name ?? "Unassigned college",
-                CollegeCode = g.Key?.Code ?? "—",
-                FacultyCount = g.Count(),
-                AverageSet = g.Any(r => r.StudentRespondents > 0)
-                    ? Math.Round(g.Where(r => r.StudentRespondents > 0).Average(r => r.StudentRating), 2) : 0,
-                AverageSef = g.Any(r => r.SupervisorRespondents > 0)
-                    ? Math.Round(g.Where(r => r.SupervisorRespondents > 0).Average(r => r.SupervisorRating), 2) : 0,
-                TotalStudentRespondents = g.Sum(r => r.StudentRespondents),
-                TotalSupervisorRespondents = g.Sum(r => r.SupervisorRespondents),
-                Faculty = g.OrderByDescending(r => r.StudentRating).ToList()
+                CollegeName = b.Name,
+                CollegeCode = b.Code,
+                FacultyCount = b.Items.Count,
+                AverageSet = b.Items.Any(r => r.StudentRespondents > 0)
+                    ? Math.Round(b.Items.Where(r => r.StudentRespondents > 0).Average(r => r.StudentRating), 2) : 0,
+                AverageSef = b.Items.Any(r => r.SupervisorRespondents > 0)
+                    ? Math.Round(b.Items.Where(r => r.SupervisorRespondents > 0).Average(r => r.SupervisorRating), 2) : 0,
+                TotalStudentRespondents = b.Items.Sum(r => r.StudentRespondents),
+                TotalSupervisorRespondents = b.Items.Sum(r => r.SupervisorRespondents),
+                Faculty = b.Items.OrderBy(r => r.Faculty.LastName).ThenBy(r => r.Faculty.FirstName).ToList()
             })
-            .OrderByDescending(g => g.AverageSet)
             .ToList();
 
         return View(groups);
@@ -128,7 +136,7 @@ public class QualityAssuranceController : Controller
         public string FacultyName { get; set; } = "";
         public string? CollegeCode { get; set; }
         public string? ProgramCode { get; set; }
-        public string? SubjectCode { get; set; }
+        public string? CourseCode { get; set; }
         public string? Section { get; set; }
         public string EvaluatorType { get; set; } = "";
         public string Semester { get; set; } = "";

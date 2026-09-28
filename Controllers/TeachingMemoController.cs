@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FacultyEvalSystem.Data;
 using FacultyEvalSystem.Models;
+using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
@@ -21,15 +22,18 @@ public class TeachingMemoController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly DataImportService _import;
 
-    public TeachingMemoController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    public TeachingMemoController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
+        DataImportService import)
     {
         _db = db;
         _userManager = userManager;
+        _import = import;
     }
 
     public static readonly string[] ExpectedColumns =
-        ["MemoNumber", "FacultyEmail", "SubjectCode", "SubjectName", "Section", "ProgramCode"];
+        ["MemoNumber", "FacultyEmail", "CourseCode", "CourseTitle", "Section", "ProgramCode"];
 
     public async Task<IActionResult> Index()
     {
@@ -41,13 +45,13 @@ public class TeachingMemoController : Controller
                 .Include(fs => fs.Faculty)
                 .Include(fs => fs.Program)
                 .Where(fs => fs.SemesterId == activeSemester.Id)
-                .OrderBy(fs => fs.SubjectCode)
+                .OrderBy(fs => fs.Faculty.LastName).ThenBy(fs => fs.Faculty.FirstName).ThenBy(fs => fs.CourseCode)
                 .ToListAsync()
             : [];
 
         ViewBag.Programs = await _db.AcademicPrograms
             .Include(p => p.College)
-            .OrderBy(p => p.Code)
+            .OrderBy(p => p.Name)
             .ToListAsync();
 
         return View();
@@ -57,8 +61,8 @@ public class TeachingMemoController : Controller
     public IActionResult Template()
     {
         var csv = string.Join(",", ExpectedColumns) + "\n"
-                + "TM-2026-001,jose.santos@isuc.edu.ph,IT 101,Introduction to Computing,BSIT 1A,BSIT\n"
-                + "TM-2026-001,anna.cruz@isuc.edu.ph,GE 102,Purposive Communication,BSIT 1A,BSIT\n";
+                + "TM-2026-001,dominic.cabauatan@isuc.edu.ph,IT 101,Introduction to Computing,BSIT 1A,BSIT\n"
+                + "TM-2026-001,phillip.dumlao@isuc.edu.ph,GEC 1,Understanding the Self,BSIT 1A,BSIT\n";
 
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "teaching_memo_template.csv");
     }
@@ -88,15 +92,16 @@ public class TeachingMemoController : Controller
         }
 
         var header = rows[0].Select(h => h.Trim()).ToList();
-        int Col(string name) => header.FindIndex(h => h.Equals(name, StringComparison.OrdinalIgnoreCase));
+        int Col(params string[] names) => header.FindIndex(h => names.Any(n => h.Equals(n, StringComparison.OrdinalIgnoreCase)));
 
-        int iMemo = Col("MemoNumber"), iEmail = Col("FacultyEmail"), iCode = Col("SubjectCode"),
-            iName = Col("SubjectName"), iSection = Col("Section"), iProgram = Col("ProgramCode");
+        // Older memos label the column "SubjectCode"; the system calls it Course Code
+        int iMemo = Col("MemoNumber"), iEmail = Col("FacultyEmail"), iCode = Col("CourseCode", "SubjectCode"),
+            iName = Col("CourseTitle", "SubjectName"), iSection = Col("Section"), iProgram = Col("ProgramCode");
 
-        if (iEmail < 0 || iCode < 0 || iName < 0)
+        if (iEmail < 0 || iCode < 0)
         {
             TempData["Error"] = "The file is missing required columns. It must contain at least "
-                              + "FacultyEmail, SubjectCode and SubjectName. "
+                              + "FacultyEmail and CourseCode. "
                               + "Download the template to see the expected format.";
             return RedirectToAction(nameof(Index));
         }
@@ -141,7 +146,8 @@ public class TeachingMemoController : Controller
             string Get(int i) => i >= 0 && i < f.Length ? f[i].Trim() : "";
 
             var email = Get(iEmail);
-            var code = Get(iCode);
+            var code = CourseCodes.Clean(Get(iCode));
+            var key = CourseCodes.Key(code);
             var name = Get(iName);
             var section = Get(iSection);
             var programCode = Get(iProgram);
@@ -149,7 +155,7 @@ public class TeachingMemoController : Controller
 
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
             {
-                problems.Add($"Row {r + 1}: missing faculty e-mail or subject code.");
+                problems.Add($"Row {r + 1}: missing faculty e-mail or course code.");
                 continue;
             }
 
@@ -178,13 +184,13 @@ public class TeachingMemoController : Controller
 
             var existing = await _db.FacultySubjects.FirstOrDefaultAsync(fs =>
                 fs.FacultyId == faculty.Id &&
-                fs.SubjectCode == code &&
+                fs.CourseKey == key &&
                 fs.Section == section &&
                 fs.SemesterId == activeSemester.Id);
 
             if (existing is not null)
             {
-                existing.SubjectName = name;
+                existing.CourseTitle = string.IsNullOrWhiteSpace(name) ? existing.CourseTitle : name;
                 existing.ProgramId = program?.Id ?? existing.ProgramId;
                 existing.TeachingMemoNumber = string.IsNullOrWhiteSpace(memoNo) ? existing.TeachingMemoNumber : memoNo;
                 updated++;
@@ -195,8 +201,9 @@ public class TeachingMemoController : Controller
                 {
                     FacultyId = faculty.Id,
                     SemesterId = activeSemester.Id,
-                    SubjectCode = code,
-                    SubjectName = name,
+                    CourseCode = code,
+                    CourseKey = key,
+                    CourseTitle = string.IsNullOrWhiteSpace(name) ? null : name,
                     Section = string.IsNullOrWhiteSpace(section) ? null : section,
                     ProgramId = program?.Id,
                     TeachingMemoNumber = string.IsNullOrWhiteSpace(memoNo) ? null : memoNo
@@ -207,8 +214,12 @@ public class TeachingMemoController : Controller
 
         await _db.SaveChangesAsync();
 
+        // Link students from the Registrar's masterlist to these assignments
+        var link = await _import.LinkEnrollmentsAsync(activeSemester.Id);
+
         TempData["Success"] = $"Teaching Memo imported for {activeSemester.DisplayName}: "
-                            + $"{created} assignment(s) created, {updated} updated.";
+                            + $"{created} assignment(s) created, {updated} updated; "
+                            + $"{link.EnrollmentsCreated} student enrollment(s) linked.";
 
         if (problems.Count > 0)
             TempData["Error"] = $"{problems.Count} row(s) need attention: "

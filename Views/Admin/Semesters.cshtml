@@ -26,16 +26,15 @@
     </div>
     <div class="col-md-7">
         <div class="card">
-            <div class="card-header">Semesters</div>
+            <div class="card-header">Semesters (@Model.Count)</div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
-                    <thead><tr><th>Academic Year</th><th>Term</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Semester</th><th>Status</th></tr></thead>
                     <tbody>
                         @foreach (var s in Model)
                         {
                             <tr>
-                                <td>@s.AcademicYear</td>
-                                <td>@s.Term</td>
+                                <td>@s.DisplayName</td>
                                 <td>
                                     @if (s.IsActive)
                                     {

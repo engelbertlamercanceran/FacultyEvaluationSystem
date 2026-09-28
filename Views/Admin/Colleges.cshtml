@@ -27,10 +27,10 @@
                     <div class="mb-3">
                         <label class="form-label">College</label>
                         <select name="collegeId" class="form-select" required>
-                            <option value="">-- Select --</option>
+                            <option value="">Choose college&hellip;</option>
                             @foreach (var c in Model)
                             {
-                                <option value="@c.Id">@c.Code - @c.Name</option>
+                                <option value="@c.Id">@c.Name (@c.Code)</option>
                             }
                         </select>
                     </div>

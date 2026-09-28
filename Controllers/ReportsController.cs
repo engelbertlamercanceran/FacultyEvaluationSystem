@@ -439,7 +439,7 @@ public class ReportsController : Controller
         csv.AppendLine("Note,Responses are anonymous. Individual evaluators are not identified.");
         csv.AppendLine();
 
-        csv.AppendLine("ResponseNo,EvaluatorType,SubjectCode,Section,SubmittedOn,Category,Item,Rating");
+        csv.AppendLine("ResponseNo,EvaluatorType,CourseCode,Section,SubmittedOn,Category,Item,Rating");
 
         int n = 0;
         foreach (var e in evaluations)
@@ -450,7 +450,7 @@ public class ReportsController : Controller
                 csv.AppendLine(string.Join(",",
                     n,
                     Csv(e.EvaluatorType),
-                    Csv(e.FacultySubject?.SubjectCode ?? ""),
+                    Csv(e.FacultySubject?.CourseCode ?? ""),
                     Csv(e.FacultySubject?.Section ?? ""),
                     Csv(e.SubmittedAt.ToString("yyyy-MM-dd")),
                     Csv(r.Criterion.Category.Name),
@@ -460,7 +460,7 @@ public class ReportsController : Controller
         }
 
         csv.AppendLine();
-        csv.AppendLine("ResponseNo,EvaluatorType,SubjectCode,Section,SubmittedOn,TotalScore,Rating,Comment");
+        csv.AppendLine("ResponseNo,EvaluatorType,CourseCode,Section,SubmittedOn,TotalScore,Rating,Comment");
 
         n = 0;
         foreach (var e in evaluations)
@@ -471,7 +471,7 @@ public class ReportsController : Controller
             csv.AppendLine(string.Join(",",
                 n,
                 Csv(e.EvaluatorType),
-                Csv(e.FacultySubject?.SubjectCode ?? ""),
+                Csv(e.FacultySubject?.CourseCode ?? ""),
                 Csv(e.FacultySubject?.Section ?? ""),
                 Csv(e.SubmittedAt.ToString("yyyy-MM-dd")),
                 total,
@@ -506,7 +506,7 @@ public class ReportsController : Controller
                 .Where(e => e.EvaluationPeriodId == periodId.Value)
                 .Select(e => e.Faculty)
                 .Distinct()
-                .OrderBy(f => f.LastName)
+                .OrderBy(f => f.LastName).ThenBy(f => f.FirstName)
                 .ToListAsync()
             : [];
 
@@ -532,7 +532,7 @@ public class ReportsController : Controller
         var results = await _db.EvaluationResults
             .Include(r => r.Faculty).ThenInclude(f => f.College)
             .Where(r => r.EvaluationPeriodId == periodId)
-            .OrderByDescending(r => r.StudentRating)
+            .OrderBy(r => r.Faculty.LastName).ThenBy(r => r.Faculty.FirstName)
             .ToListAsync();
 
         var pdf = Document.Create(container =>

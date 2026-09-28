@@ -1,10 +1,10 @@
 ﻿@model List<FacultyEvalSystem.Models.FacultySubject>
-@{ ViewData["Title"] = "Subject Assignments"; }
+@{ ViewData["Title"] = "Course Assignments"; }
 
 <div class="row">
     <div class="col-md-5">
         <div class="card mb-3">
-            <div class="card-header">Assign Subject to Faculty</div>
+            <div class="card-header">Assign Course to Faculty</div>
             <div class="card-body">
                 @if (ViewBag.ActiveSemester is null)
                 {
@@ -17,16 +17,16 @@
                         <div class="mb-3">
                             <label class="form-label">Faculty</label>
                             <select name="facultyId" asp-items="(SelectList)ViewBag.Faculty" class="form-select" required>
-                                <option value="">-- Select Faculty --</option>
+                                <option value="">Choose faculty&hellip;</option>
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Subject Code</label>
-                            <input name="subjectCode" class="form-control" placeholder="e.g. IT 101" required />
+                            <label class="form-label">Course Code</label>
+                            <input name="courseCode" class="form-control" placeholder="e.g. IT 101" required />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Subject Name</label>
-                            <input name="subjectName" class="form-control" placeholder="e.g. Introduction to Computing" required />
+                            <label class="form-label">Course Title <small class="text-muted">(optional)</small></label>
+                            <input name="courseTitle" class="form-control" placeholder="e.g. Introduction to Computing" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Section</label>
@@ -40,10 +40,10 @@
                                 <small class="text-muted">&mdash; whose Chair evaluates this course</small>
                             </label>
                             <select name="programId" asp-items="(SelectList)ViewBag.Programs" class="form-select" required>
-                                <option value="">-- Select Program --</option>
+                                <option value="">Choose program&hellip;</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Assign Subject</button>
+                        <button type="submit" class="btn btn-primary w-100">Assign Course</button>
                     </form>
                 }
             </div>
@@ -51,16 +51,16 @@
     </div>
     <div class="col-md-7">
         <div class="card">
-            <div class="card-header">Current Semester Assignments</div>
+            <div class="card-header">Current Semester Assignments (@Model.Count)</div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
-                    <thead><tr><th>Faculty</th><th>Subject</th><th>Section</th><th>Program</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Faculty</th><th>Course</th><th>Section</th><th>Program</th><th>Action</th></tr></thead>
                     <tbody>
                         @foreach (var s in Model)
                         {
                             <tr>
-                                <td>@s.Faculty.FullName</td>
-                                <td>@s.SubjectCode - @s.SubjectName</td>
+                                <td>@s.Faculty.SortName</td>
+                                <td>@s.CourseDisplay</td>
                                 <td>@(s.Section ?? "-")</td>
                                 <td>
                                     @if (s.Program is not null)
