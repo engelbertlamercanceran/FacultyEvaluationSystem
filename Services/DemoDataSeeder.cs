@@ -391,9 +391,20 @@ public class DemoDataSeeder
 
             if (assignments.Count == 0) continue;
 
-            var enrollments = await _db.StudentEnrollments
+            var enrollments = (await _db.StudentEnrollments
                 .Where(e => e.FacultySubject.SemesterId == period.SemesterId)
+                .ToListAsync())
+                .ToLookup(e => e.FacultySubjectId);
+
+            // What was already submitted in this period, so a re-run adds only what is
+            // missing — checked in memory, as one query per row is far too slow at the
+            // size of a real Registrar masterlist
+            var existing = await _db.Evaluations
+                .Where(ev => ev.EvaluationPeriodId == period.Id)
+                .Select(ev => new { ev.EvaluatorId, ev.FacultyId, ev.FacultySubjectId })
                 .ToListAsync();
+            var studentDone = existing.Select(e => (e.EvaluatorId, e.FacultyId, e.FacultySubjectId)).ToHashSet();
+            var supervisorDone = existing.Select(e => (e.EvaluatorId, e.FacultyId)).ToHashSet();
 
             // ---- Student evaluations: one per enrolled student per class ----
             for (int f = 0; f < allFaculty.Count; f++)
@@ -404,7 +415,7 @@ public class DemoDataSeeder
 
                 foreach (var subject in facSubjects)
                 {
-                    var enrolled = enrollments.Where(e => e.FacultySubjectId == subject.Id).ToList();
+                    var enrolled = enrollments[subject.Id].ToList();
 
                     // Roughly two thirds submitted so far while the stage is still open
                     if (studentStageInProgress)
@@ -412,9 +423,7 @@ public class DemoDataSeeder
 
                     foreach (var enrollment in enrolled)
                     {
-                        if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == enrollment.StudentId
-                                && ev.FacultyId == fac.Id && ev.FacultySubjectId == subject.Id
-                                && ev.EvaluationPeriodId == period.Id))
+                        if (!studentDone.Add((enrollment.StudentId, fac.Id, (int?)subject.Id)))
                             continue;
 
                         _db.Evaluations.Add(new Evaluation
@@ -450,8 +459,7 @@ public class DemoDataSeeder
                     var chair = chairs.FirstOrDefault(c => c.ProgramId == programId && c.Id != fac.Id);
                     if (chair is null) continue;
 
-                    if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == chair.Id
-                            && ev.FacultyId == fac.Id && ev.EvaluationPeriodId == period.Id))
+                    if (!supervisorDone.Add((chair.Id, fac.Id)))
                         continue;
 
                     _db.Evaluations.Add(new Evaluation
@@ -482,8 +490,7 @@ public class DemoDataSeeder
                 // so no evaluation is generated for them here.
                 if (dean is null) continue;
 
-                if (await _db.Evaluations.AnyAsync(ev => ev.EvaluatorId == dean.Id
-                        && ev.FacultyId == chair.Id && ev.EvaluationPeriodId == period.Id))
+                if (!supervisorDone.Add((dean.Id, chair.Id)))
                     continue;
 
                 var profile = profiles[ci % profiles.Length];
