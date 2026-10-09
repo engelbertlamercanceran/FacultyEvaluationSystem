@@ -46,7 +46,7 @@
             <span class="badge @DevelopmentPlan.StatusBadgeClass(Model.Status)">@Model.StatusName</span>
             @if (createdBy is not null)
             {
-                <small class="text-muted ms-2">Created by @createdBy (@(Model.CreatedByRole == "ProgramChair" ? "Program Chair" : Model.CreatedByRole))</small>
+                <small class="text-muted ms-2">Created by @createdBy (@RoleNames.Display(Model.CreatedByRole))</small>
             }
             @if (Model.IsAcknowledged)
             {

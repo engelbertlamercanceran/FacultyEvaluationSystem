@@ -12,18 +12,21 @@ using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,CEO,AA,Dean,ProgramChair,Faculty,QA")]
+[Authorize(Roles = "Admin,CEO,AA,AAStaff,Dean,ProgramChair,Faculty,QA")]
 public class ReportsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly EvaluationService _evalService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly EvaluatorAssignmentService _assignments;
 
-    public ReportsController(ApplicationDbContext db, EvaluationService evalService, UserManager<ApplicationUser> userManager)
+    public ReportsController(ApplicationDbContext db, EvaluationService evalService, UserManager<ApplicationUser> userManager,
+        EvaluatorAssignmentService assignments)
     {
         _db = db;
         _evalService = evalService;
         _userManager = userManager;
+        _assignments = assignments;
     }
 
     /// <summary>
@@ -40,11 +43,11 @@ public class ReportsController : Controller
     // Generate Individual Faculty Evaluation Report (IFER) PDF
     // Per CHED CMO No. 19, Series of 2025 - Annex C
     [HttpGet]
-    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA,AA")]
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA,AA,AAStaff")]
     public async Task<IActionResult> IFER(int periodId, string? facultyId, bool preview = false)
     {
-        // Faculty can only view their own
-        if (User.IsInRole("Faculty"))
+        // Faculty can only view their own; a Program Chair opening their own passes no id
+        if (User.IsInRole("Faculty") || string.IsNullOrEmpty(facultyId))
             facultyId = _userManager.GetUserId(User);
 
         var result = await _db.EvaluationResults
@@ -53,6 +56,10 @@ public class ReportsController : Controller
             .FirstOrDefaultAsync(r => r.EvaluationPeriodId == periodId && r.FacultyId == facultyId);
 
         if (result is null) return NotFound("No evaluation results found.");
+
+        // Names filled in on the signature lines: the faculty member evaluated and
+        // the supervisor who evaluated them
+        var reviewer = (await _assignments.FindReviewerAsync(result.Faculty, periodId))?.FullName;
 
         var studentBreakdown = await _evalService.GetCategoryBreakdownAsync(periodId, facultyId!, "Student");
         var supervisorBreakdown = await _evalService.GetCategoryBreakdownAsync(periodId, facultyId!, "Supervisor");
@@ -181,7 +188,8 @@ public class ReportsController : Controller
                             c.Item().Text("Prepared by:").FontSize(9);
                             c.Item().PaddingTop(25).LineHorizontal(1);
                             c.Item().Text("Signature of Staff").FontSize(9);
-                            c.Item().PaddingTop(5).LineHorizontal(1);
+                            c.Item().PaddingTop(5).AlignCenter().Text(result.Faculty.FullName).Bold();
+                            c.Item().LineHorizontal(1);
                             c.Item().Text("Name of Staff").FontSize(9);
                             c.Item().PaddingTop(5).LineHorizontal(1);
                             c.Item().Text("Date").FontSize(9);
@@ -192,7 +200,8 @@ public class ReportsController : Controller
                             c.Item().Text("Reviewed by:").FontSize(9);
                             c.Item().PaddingTop(25).LineHorizontal(1);
                             c.Item().Text("Signature of Authorized Official").FontSize(9);
-                            c.Item().PaddingTop(5).LineHorizontal(1);
+                            c.Item().PaddingTop(5).AlignCenter().Text(reviewer ?? " ").Bold();
+                            c.Item().LineHorizontal(1);
                             c.Item().Text("Name of Authorized Official").FontSize(9);
                             c.Item().PaddingTop(5).LineHorizontal(1);
                             c.Item().Text("Date").FontSize(9);
@@ -217,10 +226,10 @@ public class ReportsController : Controller
     // Generate Faculty Evaluation and Development Acknowledgement Form (FEDAF) PDF
     // Per CHED CMO No. 19, Series of 2025 - Annex D
     [HttpGet]
-    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA,AA")]
+    [Authorize(Roles = "Admin,Dean,ProgramChair,Faculty,QA,AA,AAStaff")]
     public async Task<IActionResult> FEDAF(int periodId, string? facultyId, bool preview = false)
     {
-        if (User.IsInRole("Faculty"))
+        if (User.IsInRole("Faculty") || string.IsNullOrEmpty(facultyId))
             facultyId = _userManager.GetUserId(User);
 
         var result = await _db.EvaluationResults
@@ -230,6 +239,10 @@ public class ReportsController : Controller
 
         if (result is null) return NotFound("No evaluation results found.");
 
+        // Names filled in on the signature lines: the faculty member evaluated and
+        // the supervisor who evaluated them
+        var reviewer = (await _assignments.FindReviewerAsync(result.Faculty, periodId))?.FullName;
+
         var plan = await _db.DevelopmentPlans
             .FirstOrDefaultAsync(d => d.EvaluationPeriodId == periodId && d.FacultyId == facultyId);
 
@@ -238,7 +251,7 @@ public class ReportsController : Controller
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(40);
+                page.Margin(30);
                 page.DefaultTextStyle(x => x.FontSize(10));
 
                 page.Header().Column(col =>
@@ -319,30 +332,30 @@ public class ReportsController : Controller
                     col.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Column(box =>
                     {
                         box.Item().Background(Colors.Grey.Lighten3).Padding(5).Text("Areas for Improvement").Bold().FontSize(9);
-                        box.Item().Padding(8).MinHeight(60).Text(plan?.AreasForImprovement ?? "").FontSize(9);
+                        box.Item().Padding(8).MinHeight(35).Text(plan?.AreasForImprovement ?? "").FontSize(9);
                     });
 
                     col.Item().PaddingTop(5).Border(1).BorderColor(Colors.Grey.Lighten2).Column(box =>
                     {
                         box.Item().Background(Colors.Grey.Lighten3).Padding(5).Text("Proposed Learning and Development Activities").Bold().FontSize(9);
-                        box.Item().Padding(8).MinHeight(60).Text(plan?.ProposedActivities ?? "").FontSize(9);
+                        box.Item().Padding(8).MinHeight(35).Text(plan?.ProposedActivities ?? "").FontSize(9);
                     });
 
                     col.Item().PaddingTop(5).Border(1).BorderColor(Colors.Grey.Lighten2).Column(box =>
                     {
                         box.Item().Background(Colors.Grey.Lighten3).Padding(5).Text("Action Plan").Bold().FontSize(9);
-                        box.Item().Padding(8).MinHeight(60).Text(plan?.ActionPlan ?? "").FontSize(9);
+                        box.Item().Padding(8).MinHeight(35).Text(plan?.ActionPlan ?? "").FontSize(9);
                     });
 
-                    col.Item().PaddingVertical(10);
+                    col.Item().PaddingVertical(6);
 
                     // Acknowledgement statement
                     col.Item().Text("I acknowledge that I have received and reviewed the faculty evaluation conducted for the period mentioned above. I understand that my signature below does not necessarily indicate agreement with the evaluation but confirms that I have been given the opportunity to discuss it with my supervisor.").FontSize(9).Italic();
 
-                    col.Item().PaddingVertical(15);
+                    col.Item().PaddingVertical(8);
 
-                    // Signature lines
-                    col.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Column(sigBox =>
+                    // Signature lines, kept together on one page
+                    col.Item().ShowEntire().Border(1).BorderColor(Colors.Grey.Lighten2).Column(sigBox =>
                     {
                         // Supervisor section
                         sigBox.Item().Background(Colors.Grey.Lighten3).Padding(5).AlignCenter().Text("SUPERVISOR").Bold();
@@ -357,7 +370,8 @@ public class ReportsController : Controller
                             row.RelativeItem().Column(c =>
                             {
                                 c.Item().Text("Name").FontSize(9);
-                                c.Item().PaddingTop(20).LineHorizontal(1);
+                                c.Item().PaddingTop(6).Text(reviewer ?? " ").Bold();
+                                c.Item().PaddingTop(2).LineHorizontal(1);
                             });
                             row.ConstantItem(20);
                             row.RelativeItem().Column(c =>
@@ -380,7 +394,8 @@ public class ReportsController : Controller
                             row.RelativeItem().Column(c =>
                             {
                                 c.Item().Text("Name").FontSize(9);
-                                c.Item().PaddingTop(20).LineHorizontal(1);
+                                c.Item().PaddingTop(6).Text(result.Faculty.FullName).Bold();
+                                c.Item().PaddingTop(2).LineHorizontal(1);
                             });
                             row.ConstantItem(20);
                             row.RelativeItem().Column(c =>
@@ -523,7 +538,7 @@ public class ReportsController : Controller
 
     // Generate summary report for all faculty in a period
     [HttpGet]
-    [Authorize(Roles = "Admin,CEO,AA,Dean,ProgramChair,QA")]
+    [Authorize(Roles = "Admin,CEO,AA,AAStaff,Dean,ProgramChair,QA")]
     public async Task<IActionResult> SummaryReport(int periodId)
     {
         var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstOrDefaultAsync(p => p.Id == periodId);
@@ -564,7 +579,6 @@ public class ReportsController : Controller
                         columns.RelativeColumn(1);
                         columns.RelativeColumn(1);
                         columns.RelativeColumn(1.5f);
-                        columns.RelativeColumn(1.5f);
                     });
 
                     table.Header(header =>
@@ -577,7 +591,6 @@ public class ReportsController : Controller
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("# Students").Style(style);
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SEF Rating").Style(style);
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("# Supervisors").Style(style);
-                        header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SET Description").Style(style);
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignCenter().Text("SEF Description").Style(style);
                     });
 
@@ -592,7 +605,6 @@ public class ReportsController : Controller
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.StudentRespondents.ToString());
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.SupervisorRating.ToString("F2"));
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.SupervisorRespondents.ToString());
-                        table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.StudentDescriptiveRating);
                         table.Cell().Background(bg).Padding(4).AlignCenter().Text(r.SupervisorDescriptiveRating);
                     }
                 });

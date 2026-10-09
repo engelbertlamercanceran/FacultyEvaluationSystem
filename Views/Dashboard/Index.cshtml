@@ -5,7 +5,7 @@
     <div class="col-md-3">
         <div class="stat-card">
             <h3>@Model.TotalFaculty</h3>
-            <p>Faculty Members</p>
+            <p>@(Model.IsScopedToAssignedFaculty ? "My Faculty Members" : "Faculty Members")</p>
         </div>
     </div>
     <div class="col-md-3">

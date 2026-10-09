@@ -13,7 +13,7 @@ namespace FacultyEvalSystem.Controllers;
 /// Evaluations are anonymous. Nothing on these screens identifies the person who
 /// submitted a comment or a rating — only the faculty member it concerns.
 /// </summary>
-[Authorize(Roles = "QA,Admin,CEO,AA")]
+[Authorize(Roles = "QA,CEO,AA")]
 public class QualityAssuranceController : Controller
 {
     private readonly ApplicationDbContext _db;

@@ -1,3 +1,4 @@
+@using FacultyEvalSystem.Models
 @model List<FacultyEvalSystem.Models.ApplicationUser>
 @{
     ViewData["Title"] = "User Management";
@@ -13,6 +14,13 @@
     bool filtered = !string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(role) || collegeId.HasValue;
 }
 
+@* Accounts come from the two imports; Add User covers one-off accounts *@
+<div class="d-flex justify-content-end gap-2 mb-3">
+    <a asp-controller="BatchImport" asp-action="Index" asp-fragment="registrar" class="btn btn-outline-success btn-sm">Import Student</a>
+    <a asp-controller="BatchImport" asp-action="Index" asp-fragment="workload" class="btn btn-outline-primary btn-sm">Import Faculty</a>
+    <a asp-action="CreateUser" class="btn btn-primary btn-sm">+ Add User</a>
+</div>
+
 <div class="card mb-3">
     <div class="card-body py-3">
         <form method="get" class="row g-2 align-items-end">
@@ -26,7 +34,7 @@
                     <option value="">All roles</option>
                     @foreach (var r in roles)
                     {
-                        <option value="@r" selected="@(r == role)">@r</option>
+                        <option value="@r" selected="@(r == role)">@RoleNames.Display(r)</option>
                     }
                 </select>
             </div>
@@ -42,7 +50,6 @@
                 {
                     <a asp-action="Users" class="btn btn-outline-secondary btn-sm">Clear</a>
                 }
-                <a asp-action="CreateUser" class="btn btn-primary btn-sm text-nowrap ms-auto">+ Add User</a>
             </div>
         </form>
     </div>
@@ -68,7 +75,7 @@
                     <tr>
                         <td>@user.SortName@(string.IsNullOrWhiteSpace(user.Suffix) ? "" : $" {user.Suffix}")</td>
                         <td><small>@user.Email</small></td>
-                        <td><span class="badge bg-secondary">@(userRoles.GetValueOrDefault(user.Id) ?? "None")</span></td>
+                        <td><span class="badge bg-secondary">@RoleNames.Display(userRoles.GetValueOrDefault(user.Id))</span></td>
                         <td>@(user.College?.Code ?? "-")</td>
                         <td>@(user.Program?.Code ?? "-")</td>
                         <td>

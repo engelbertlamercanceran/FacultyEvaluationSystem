@@ -1,0 +1,80 @@
+@using FacultyEvalSystem.Models
+@model FacultySubject
+@{
+    ViewData["Title"] = "Edit Teaching Assignment";
+    var faculty = ViewBag.Faculty as List<ApplicationUser> ?? [];
+    var programs = ViewBag.Programs as List<AcademicProgram> ?? [];
+    var hasEvaluations = ViewBag.HasEvaluations as bool? ?? false;
+}
+
+<a asp-action="Index" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to Teaching Assignments</a>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">@Model.CourseCode &mdash; @Model.Semester.DisplayName</div>
+            <div class="card-body">
+                @if (hasEvaluations)
+                {
+                    <div class="alert alert-info small py-2">
+                        Evaluations have already been submitted for this assignment, so the faculty member and
+                        Course Code are fixed. The other details can still be corrected.
+                    </div>
+                }
+                <form asp-action="Edit" method="post">
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    @if (hasEvaluations)
+                    {
+                        <input type="hidden" name="facultyId" value="@Model.FacultyId" />
+                        <input type="hidden" name="courseCode" value="@Model.CourseCode" />
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Faculty</label>
+                        <select name="facultyId" class="form-select" required disabled="@hasEvaluations">
+                            @* The current faculty member may since have been deactivated *@
+                            @if (!faculty.Any(f => f.Id == Model.FacultyId))
+                            {
+                                <option value="@Model.FacultyId" selected>@Model.Faculty.SortName</option>
+                            }
+                            @foreach (var f in faculty)
+                            {
+                                <option value="@f.Id" selected="@(f.Id == Model.FacultyId)">@f.SortName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Course Code</label>
+                            <input name="courseCode" value="@Model.CourseCode" class="form-control" required disabled="@hasEvaluations" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Section</label>
+                            <input name="section" value="@Model.Section" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Course Title <small class="text-muted">(optional)</small></label>
+                        <input name="courseTitle" value="@Model.CourseTitle" class="form-control" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="form-label">Owning Program</label>
+                            <select name="programId" class="form-select">
+                                <option value="">— not set —</option>
+                                @foreach (var p in programs)
+                                {
+                                    <option value="@p.Id" selected="@(p.Id == Model.ProgramId)">@p.Code &mdash; @p.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label">Memo No.</label>
+                            <input name="memoNumber" value="@Model.TeachingMemoNumber" class="form-control" />
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

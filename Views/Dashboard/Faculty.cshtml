@@ -39,7 +39,7 @@
     </div>
     <div class="col-md-6">
         <div class="card h-100">
-            <div class="card-header">Performance History</div>
+            <div class="card-header">Performance Trend <small class="text-muted">(last 5 semesters)</small></div>
             <div class="card-body">
                 <canvas id="historyChart"></canvas>
             </div>
@@ -52,7 +52,7 @@
     <div class="card-body p-0">
         <table class="table table-hover mb-0">
             <thead>
-                <tr><th>Semester</th><th>SET Rating</th><th>SET Description</th><th>SEF Rating</th><th>SEF Description</th></tr>
+                <tr><th>Semester</th><th>SET Rating</th><th>SEF Rating</th></tr>
             </thead>
             <tbody>
                 @foreach (var r in Model.History)
@@ -60,14 +60,12 @@
                     <tr>
                         <td>@r.EvaluationPeriod.Semester.DisplayName</td>
                         <td><strong>@r.StudentRating.ToString("F2")</strong></td>
-                        <td><span class="badge bg-secondary">@r.StudentDescriptiveRating</span></td>
                         <td><strong>@r.SupervisorRating.ToString("F2")</strong></td>
-                        <td><span class="badge bg-secondary">@r.SupervisorDescriptiveRating</span></td>
                     </tr>
                 }
                 @if (!Model.History.Any())
                 {
-                    <tr><td colspan="5" class="text-center text-muted">No evaluation results yet</td></tr>
+                    <tr><td colspan="3" class="text-center text-muted">No evaluation results yet</td></tr>
                 }
             </tbody>
         </table>
@@ -81,26 +79,28 @@
 
     if (categories.length > 0) {
         new Chart(document.getElementById('categoryChart'), {
-            type: 'radar',
+            type: 'bar',
             data: {
                 labels: categories,
                 datasets: [{
-                    label: 'Rating (1-5)',
+                    label: 'Average (1-5)',
                     data: ratings,
-                    borderColor: '#1a5632',
-                    backgroundColor: 'rgba(26,86,50,0.2)',
-                    pointBackgroundColor: '#1a5632'
+                    backgroundColor: '#1a5632',
+                    borderRadius: 4,
+                    maxBarThickness: 28
                 }]
             },
             options: {
                 responsive: true,
-                scales: { r: { beginAtZero: true, max: 5 } }
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, max: 5 } }
             }
         });
     }
 
-    var historyLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.History.AsEnumerable().Reverse().Select(h => h.EvaluationPeriod.Semester.DisplayName).ToArray()));
-    var historyRatings = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.History.AsEnumerable().Reverse().Select(h => h.StudentRating).ToArray()));
+    var historyLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.TrendLabels));
+    var historyRatings = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.TrendRatings));
 
     if (historyLabels.length > 0) {
         new Chart(document.getElementById('historyChart'), {

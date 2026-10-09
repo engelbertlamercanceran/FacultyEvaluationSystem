@@ -8,6 +8,9 @@ public class AdminDashboardViewModel
     public int TotalFaculty { get; set; }
     public int TotalColleges { get; set; }
     public int TotalEvaluations { get; set; }
+
+    /// <summary>Program Chair / Dean: every figure covers only their assigned faculty.</summary>
+    public bool IsScopedToAssignedFaculty { get; set; }
     public Semester? ActiveSemester { get; set; }
     public EvaluationPeriod? ActivePeriod { get; set; }
 
@@ -87,4 +90,9 @@ public class FacultyDashboardViewModel
     public EvaluationResult? LatestResult { get; set; }
     public List<EvaluationResult> History { get; set; } = [];
     public Dictionary<string, double> CategoryBreakdown { get; set; } = [];
+
+    // DA-01: the trend always spans the five most recent semesters, oldest first.
+    // A semester without results has a null rating and shows as a gap.
+    public List<string> TrendLabels { get; set; } = [];
+    public List<double?> TrendRatings { get; set; } = [];
 }

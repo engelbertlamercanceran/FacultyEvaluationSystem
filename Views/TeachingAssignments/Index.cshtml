@@ -1,0 +1,232 @@
+@using FacultyEvalSystem.Models
+@using FacultyEvalSystem.Controllers
+@{
+    ViewData["Title"] = "Teaching Assignments";
+    var activeSemester = ViewBag.ActiveSemester as Semester;
+    var assignments = ViewBag.Assignments as List<FacultySubject> ?? [];
+    var evaluated = ViewBag.Evaluated as HashSet<int> ?? [];
+    var faculty = ViewBag.Faculty as List<ApplicationUser> ?? [];
+    var programs = ViewBag.Programs as List<AcademicProgram> ?? [];
+    var search = ViewBag.Search as string;
+    var missingProgram = assignments.Count(a => a.ProgramId is null);
+    var isAdmin = User.IsInRole("Admin");
+}
+
+@if (activeSemester is null)
+{
+    <div class="alert alert-warning">
+        No active semester. Please ask the Administrator to create one first.
+    </div>
+}
+else
+{
+<div class="row">
+    <div class="col-lg-5">
+        @* Import: the Teaching Memo (CSV) or the Faculty Workload Summary (Excel) *@
+        <div class="card mb-3">
+            <div class="card-header">Import</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Semester: <strong>@activeSemester.DisplayName</strong>
+                </p>
+                <ul class="nav nav-tabs nav-fill small mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#importMemo" type="button" role="tab">
+                            Teaching Memo (CSV)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importWorkload" type="button" role="tab">
+                            Workload Summary (Excel)
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="importMemo" role="tabpanel">
+                        <form asp-action="Import" method="post" enctype="multipart/form-data">
+                            <input type="file" name="file" accept=".csv" class="form-control form-control-sm mb-2" required />
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="replaceExisting" value="true"
+                                       class="form-check-input" id="replaceExisting" />
+                                <label class="form-check-label small" for="replaceExisting">
+                                    Replace this semester's existing assignments
+                                    <span class="text-muted d-block">Assignments with evaluations recorded are always kept.</span>
+                                </label>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm flex-fill">Import Teaching Memo</button>
+                                <a asp-action="Template" class="btn btn-outline-secondary btn-sm">Template</a>
+                            </div>
+                        </form>
+                        <p class="small text-muted mt-2 mb-0">
+                            Columns: <code style="font-size:11px;">@string.Join(", ", TeachingAssignmentsController.ExpectedColumns)</code>.
+                            <strong>ProgramCode</strong> is the program that <em>owns</em> the course, which decides
+                            the Program Chair who evaluates it.
+                        </p>
+                    </div>
+                    <div class="tab-pane fade" id="importWorkload" role="tabpanel">
+                        <form asp-controller="BatchImport" asp-action="ImportWorkload" method="post" enctype="multipart/form-data">
+                            <input type="hidden" name="fromAssignments" value="true" />
+                            <input type="file" name="file" accept=".xlsx" class="form-control form-control-sm mb-2" required />
+                            <button type="submit" class="btn btn-primary btn-sm w-100"
+                                    onclick="if (this.form.checkValidity()) { this.disabled = true; this.innerText = 'Importing…'; this.form.submit(); }">
+                                Import Workload Summary
+                            </button>
+                        </form>
+                        <p class="small text-muted mt-2 mb-0">
+                            Each Course Code in the campus Faculty Workload Summary becomes an assignment. Faculty
+                            without an account get one with the default password.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Add: one assignment by hand *@
+        <div class="card mb-3">
+            <div class="card-header">Add Assignment</div>
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Faculty</label>
+                        <select name="facultyId" class="form-select form-select-sm" required>
+                            <option value="">Choose faculty&hellip;</option>
+                            @foreach (var f in faculty)
+                            {
+                                <option value="@f.Id">@f.SortName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Course Code</label>
+                            <input name="courseCode" class="form-control form-control-sm" placeholder="e.g. IT 101" required />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Section</label>
+                            <input name="section" class="form-control form-control-sm" placeholder="e.g. BSIT 1A" />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Course Title <span class="text-muted">(optional)</span></label>
+                        <input name="courseTitle" class="form-control form-control-sm" placeholder="e.g. Introduction to Computing" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="form-label small mb-1">Owning Program</label>
+                            <select name="programId" class="form-select form-select-sm" required>
+                                <option value="">Choose program&hellip;</option>
+                                @foreach (var p in programs)
+                                {
+                                    <option value="@p.Id">@p.Code &mdash; @p.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small mb-1">Memo No. <span class="text-muted">(optional)</span></label>
+                            <input name="memoNumber" class="form-control form-control-sm" />
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100">Add Assignment</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        @if (missingProgram > 0)
+        {
+            <div class="alert alert-warning py-2 small">
+                <strong>@missingProgram assignment@(missingProgram == 1 ? "" : "s")</strong> have no owning
+                program. Faculty teaching @(missingProgram == 1 ? "it" : "them") will not appear on any
+                Program Chair's evaluation list until a program is set below.
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                <span>@activeSemester.DisplayName <small class="text-muted">(@assignments.Count)</small></span>
+                <form method="get" class="d-flex gap-1">
+                    <input name="search" value="@search" class="form-control form-control-sm" placeholder="Faculty, course, section, program" style="min-width:200px;" />
+                    <button type="submit" class="btn btn-outline-primary btn-sm">Search</button>
+                    @if (!string.IsNullOrWhiteSpace(search))
+                    {
+                        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Clear</a>
+                    }
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover table-sm mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Faculty</th>
+                            <th>Course</th>
+                            <th>Section</th>
+                            <th>Owning Program</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (assignments.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-4">
+                                @(string.IsNullOrWhiteSpace(search) ? "No teaching assignments yet." : "No assignments match your search.")
+                            </td></tr>
+                        }
+                        @foreach (var a in assignments)
+                        {
+                            var locked = evaluated.Contains(a.Id);
+                            <tr class="@(a.ProgramId is null ? "table-warning" : "")">
+                                <td>
+                                    <small>@a.Faculty.SortName</small>
+                                    @if (!string.IsNullOrWhiteSpace(a.TeachingMemoNumber))
+                                    {
+                                        <br /><small class="text-muted" style="font-size:11px;">@a.TeachingMemoNumber</small>
+                                    }
+                                </td>
+                                <td><small>@a.CourseCode<br /><span class="text-muted">@a.CourseTitle</span></small></td>
+                                <td><small>@(a.Section ?? "—")</small></td>
+                                <td>
+                                    <form asp-action="SetProgram" method="post">
+                                        <input type="hidden" name="id" value="@a.Id" />
+                                        <select name="programId" class="form-select form-select-sm"
+                                                onchange="this.form.submit()" style="min-width:100px;">
+                                            <option value="">— not set —</option>
+                                            @foreach (var p in programs)
+                                            {
+                                                <option value="@p.Id" selected="@(a.ProgramId == p.Id)">@p.Code</option>
+                                            }
+                                        </select>
+                                    </form>
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @if (isAdmin)
+                                    {
+                                        <a asp-controller="Admin" asp-action="Enrollments" asp-route-subjectId="@a.Id"
+                                           class="btn btn-outline-secondary btn-sm" title="Students enrolled">Students</a>
+                                    }
+                                    <a asp-action="Edit" asp-route-id="@a.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                    @if (locked)
+                                    {
+                                        <button type="button" class="btn btn-outline-danger btn-sm" disabled
+                                                title="Evaluations have been submitted for this assignment">Delete</button>
+                                    }
+                                    else
+                                    {
+                                        <form asp-action="Delete" method="post" class="d-inline"
+                                              data-confirm="Delete @a.CourseCode@(a.Section is null ? "" : $" ({a.Section})") for @a.Faculty.SortName?"
+                                              onsubmit="return confirm(this.dataset.confirm);">
+                                            <input type="hidden" name="id" value="@a.Id" />
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+}

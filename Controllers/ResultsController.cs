@@ -6,7 +6,8 @@ using FacultyEvalSystem.Data;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,CEO,AA,QA")]
+// Moved from the Administrator to CDI and CDI Staff
+[Authorize(Roles = "CEO,AA,AAStaff,QA")]
 public class ResultsController : Controller
 {
     private readonly ApplicationDbContext _db;

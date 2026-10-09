@@ -1,6 +1,10 @@
 @model List<FacultyEvalSystem.Models.EvaluationCategory>
 @{ ViewData["Title"] = "Evaluation Criteria Management"; }
 
+<div class="d-flex justify-content-end mb-3">
+    <a asp-action="Download" class="btn btn-outline-primary btn-sm">Download (PDF)</a>
+</div>
+
 <div class="row">
     <div class="col-md-4">
         <div class="card mb-3">

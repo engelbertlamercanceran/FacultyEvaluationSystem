@@ -209,6 +209,33 @@ public class EvaluatorAssignmentService
         return null;
     }
 
+    /// <summary>
+    /// The supervisor named as reviewer on a faculty member's IFER and FEDAF: whoever
+    /// actually submitted their supervisor evaluation in the period. When several
+    /// Chairs evaluated them, the Chair of their own department is preferred. Before
+    /// anyone has evaluated, falls back to the expected evaluator — the Dean for a
+    /// Program Chair, otherwise the Program Chair concerned.
+    /// </summary>
+    public async Task<ApplicationUser?> FindReviewerAsync(ApplicationUser faculty, int periodId)
+    {
+        var evaluators = await _db.Evaluations
+            .Where(e => e.FacultyId == faculty.Id && e.EvaluationPeriodId == periodId
+                     && e.EvaluatorType == "Supervisor")
+            .OrderBy(e => e.SubmittedAt)
+            .Select(e => e.Evaluator)
+            .ToListAsync();
+
+        if (evaluators.Count > 0)
+            return evaluators.FirstOrDefault(e => faculty.ProgramId is not null && e.ProgramId == faculty.ProgramId)
+                ?? evaluators[0];
+
+        if (await _userManager.IsInRoleAsync(faculty, "ProgramChair"))
+            return await FindDeanAsync(faculty.CollegeId);
+
+        var period = await _db.EvaluationPeriods.FindAsync(periodId);
+        return period is null ? null : await FindConcernedProgramChairAsync(faculty, period.SemesterId);
+    }
+
     /// <summary>The active Dean of a college, if there is one.</summary>
     public async Task<ApplicationUser?> FindDeanAsync(int? collegeId)
     {

@@ -9,7 +9,11 @@ using FacultyEvalSystem.Services;
 namespace FacultyEvalSystem.Controllers;
 
 /// <summary>
-/// AAS-01 / AAS-02: AA Staff imports the Teaching Memo, which is the source of
+/// Teaching Assignments: who teaches which course in the active semester. One
+/// page combines the two imports (Teaching Memo CSV and Faculty Workload Summary),
+/// adding a single assignment by hand, and editing or deleting existing ones.
+///
+/// AAS-01 / AAS-02: CDI Staff imports the Teaching Memo, which is the source of
 /// faculty teaching assignments for a semester. This responsibility transferred
 /// from the MIS Staff account.
 ///
@@ -18,13 +22,13 @@ namespace FacultyEvalSystem.Controllers;
 /// teaching courses within their program (PC-01 / SUP-02).
 /// </summary>
 [Authorize(Roles = "AAStaff,Admin")]
-public class TeachingMemoController : Controller
+public class TeachingAssignmentsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly DataImportService _import;
 
-    public TeachingMemoController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
+    public TeachingAssignmentsController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
         DataImportService import)
     {
         _db = db;
@@ -35,24 +39,41 @@ public class TeachingMemoController : Controller
     public static readonly string[] ExpectedColumns =
         ["MemoNumber", "FacultyEmail", "CourseCode", "CourseTitle", "Section", "ProgramCode"];
 
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(string? search)
     {
         var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
         ViewBag.ActiveSemester = activeSemester;
+        ViewBag.Search = search;
 
-        ViewBag.Assignments = activeSemester is not null
-            ? await _db.FacultySubjects
+        var assignments = new List<FacultySubject>();
+        if (activeSemester is not null)
+        {
+            var query = _db.FacultySubjects
                 .Include(fs => fs.Faculty)
                 .Include(fs => fs.Program)
-                .Where(fs => fs.SemesterId == activeSemester.Id)
-                .OrderBy(fs => fs.Faculty.LastName).ThenBy(fs => fs.Faculty.FirstName).ThenBy(fs => fs.CourseCode)
-                .ToListAsync()
-            : [];
+                .Where(fs => fs.SemesterId == activeSemester.Id);
 
-        ViewBag.Programs = await _db.AcademicPrograms
-            .Include(p => p.College)
-            .OrderBy(p => p.Name)
-            .ToListAsync();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+                query = query.Where(fs =>
+                    fs.Faculty.FirstName.ToLower().Contains(term) ||
+                    fs.Faculty.LastName.ToLower().Contains(term) ||
+                    fs.CourseCode.ToLower().Contains(term) ||
+                    (fs.CourseTitle != null && fs.CourseTitle.ToLower().Contains(term)) ||
+                    (fs.Section != null && fs.Section.ToLower().Contains(term)) ||
+                    (fs.Program != null && fs.Program.Code.ToLower().Contains(term)));
+            }
+
+            assignments = await query
+                .OrderBy(fs => fs.Faculty.LastName).ThenBy(fs => fs.Faculty.FirstName).ThenBy(fs => fs.CourseCode)
+                .ToListAsync();
+        }
+
+        ViewBag.Assignments = assignments;
+        ViewBag.Evaluated = await EvaluatedIdsAsync(assignments.Select(a => a.Id));
+        ViewBag.Faculty = await TeachingStaffAsync();
+        ViewBag.Programs = await ProgramsAsync();
 
         return View();
     }
@@ -229,6 +250,141 @@ public class TeachingMemoController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>Adds one teaching assignment to the active semester by hand.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(string facultyId, string courseCode, string? courseTitle,
+        string? section, int? programId, string? memoNumber)
+    {
+        var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+        if (activeSemester is null)
+        {
+            TempData["Error"] = "No active semester. Please ask the Administrator to create one first.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (string.IsNullOrWhiteSpace(facultyId) || string.IsNullOrWhiteSpace(courseCode))
+        {
+            TempData["Error"] = "Faculty and Course Code are required.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var key = CourseCodes.Key(courseCode);
+        var cleanSection = Blank(section);
+        if (await _db.FacultySubjects.AnyAsync(fs => fs.FacultyId == facultyId && fs.CourseKey == key
+                                                  && fs.Section == cleanSection && fs.SemesterId == activeSemester.Id))
+        {
+            TempData["Error"] = "That faculty member is already assigned to this course and section.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        _db.FacultySubjects.Add(new FacultySubject
+        {
+            FacultyId = facultyId,
+            SemesterId = activeSemester.Id,
+            CourseCode = CourseCodes.Clean(courseCode),
+            CourseKey = key,
+            CourseTitle = Blank(courseTitle),
+            Section = cleanSection,
+            ProgramId = programId,
+            TeachingMemoNumber = Blank(memoNumber)
+        });
+        await _db.SaveChangesAsync();
+
+        var link = await _import.LinkEnrollmentsAsync(activeSemester.Id);
+        TempData["Success"] = $"Course assigned; {link.EnrollmentsCreated} student enrollment(s) linked.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id)
+    {
+        var assignment = await _db.FacultySubjects
+            .Include(fs => fs.Faculty)
+            .Include(fs => fs.Semester)
+            .FirstOrDefaultAsync(fs => fs.Id == id);
+        if (assignment is null) return NotFound();
+
+        ViewBag.HasEvaluations = await _db.Evaluations.AnyAsync(e => e.FacultySubjectId == id);
+        ViewBag.Faculty = await TeachingStaffAsync();
+        ViewBag.Programs = await ProgramsAsync();
+        return View(assignment);
+    }
+
+    /// <summary>
+    /// Once evaluations are recorded against an assignment, its faculty member and
+    /// Course Code are fixed: changing them would re-attribute submitted evaluations.
+    /// The title, section, owning program and memo number can always be corrected.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, string facultyId, string courseCode, string? courseTitle,
+        string? section, int? programId, string? memoNumber)
+    {
+        var assignment = await _db.FacultySubjects.FindAsync(id);
+        if (assignment is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(facultyId) || string.IsNullOrWhiteSpace(courseCode))
+        {
+            TempData["Error"] = "Faculty and Course Code are required.";
+            return RedirectToAction(nameof(Edit), new { id });
+        }
+
+        var key = CourseCodes.Key(courseCode);
+        bool teachingChanged = assignment.FacultyId != facultyId || assignment.CourseKey != key;
+
+        if (teachingChanged && await _db.Evaluations.AnyAsync(e => e.FacultySubjectId == id))
+        {
+            TempData["Error"] = "Evaluations have already been submitted for this assignment, so its "
+                              + "faculty member and Course Code can no longer be changed.";
+            return RedirectToAction(nameof(Edit), new { id });
+        }
+
+        assignment.FacultyId = facultyId;
+        assignment.CourseCode = CourseCodes.Clean(courseCode);
+        assignment.CourseKey = key;
+        assignment.CourseTitle = Blank(courseTitle);
+        assignment.Section = Blank(section);
+        assignment.ProgramId = programId;
+        assignment.TeachingMemoNumber = Blank(memoNumber);
+
+        // The students linked to the old course or instructor no longer apply
+        if (teachingChanged)
+            _db.StudentEnrollments.RemoveRange(
+                await _db.StudentEnrollments.Where(se => se.FacultySubjectId == id).ToListAsync());
+
+        await _db.SaveChangesAsync();
+
+        if (teachingChanged)
+            await _import.LinkEnrollmentsAsync(assignment.SemesterId);
+
+        TempData["Success"] = "Teaching assignment updated.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var assignment = await _db.FacultySubjects.FindAsync(id);
+        if (assignment is null) return NotFound();
+
+        if (await _db.Evaluations.AnyAsync(e => e.FacultySubjectId == id))
+        {
+            TempData["Error"] = "Evaluations have already been submitted for this assignment, so it cannot be deleted.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // Enrollments reference the assignment, so clear those first
+        _db.StudentEnrollments.RemoveRange(
+            await _db.StudentEnrollments.Where(se => se.FacultySubjectId == id).ToListAsync());
+        _db.FacultySubjects.Remove(assignment);
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Teaching assignment {assignment.CourseCode} deleted.";
+        return RedirectToAction(nameof(Index));
+    }
+
     /// <summary>AAS-02: set the owning program of an assignment without re-importing.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -243,6 +399,35 @@ public class TeachingMemoController : Controller
         TempData["Success"] = "Owning program updated.";
         return RedirectToAction(nameof(Index));
     }
+
+    private async Task<HashSet<int>> EvaluatedIdsAsync(IEnumerable<int> assignmentIds)
+    {
+        var ids = assignmentIds.ToList();
+        return (await _db.Evaluations
+            .Where(e => e.FacultySubjectId != null && ids.Contains(e.FacultySubjectId.Value))
+            .Select(e => e.FacultySubjectId!.Value)
+            .Distinct()
+            .ToListAsync()).ToHashSet();
+    }
+
+    /// <summary>Active faculty, Program Chairs and Deans, alphabetically.</summary>
+    private async Task<List<ApplicationUser>> TeachingStaffAsync()
+    {
+        var ids = await (from ur in _db.UserRoles
+                         join r in _db.Roles on ur.RoleId equals r.Id
+                         where r.Name == "Faculty" || r.Name == "ProgramChair" || r.Name == "Dean"
+                         select ur.UserId).Distinct().ToListAsync();
+
+        return await _db.Users
+            .Where(u => u.IsActive && ids.Contains(u.Id))
+            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
+            .ToListAsync();
+    }
+
+    private async Task<List<AcademicProgram>> ProgramsAsync()
+        => await _db.AcademicPrograms.Include(p => p.College).OrderBy(p => p.Code).ToListAsync();
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static async Task<List<string[]>> ReadCsvAsync(IFormFile file)
     {

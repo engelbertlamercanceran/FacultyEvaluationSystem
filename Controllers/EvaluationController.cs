@@ -305,7 +305,7 @@ public class EvaluationController : Controller
                 StageMessage = period.IsClosed
                     ? $"{period.DisplayName} is closed. No further evaluations can be submitted."
                     : $"The evaluation is currently at the \"{period.StageName}\" stage. "
-                      + "You will be able to submit once Academic Affairs opens your stage."
+                      + "You will be able to submit once CDI opens your stage."
             });
         }
 
@@ -338,7 +338,7 @@ public class EvaluationController : Controller
         {
             model.StageMessage = "Your account is not linked to a program, so the system cannot "
                                + "determine which faculty you are responsible for. Please ask "
-                               + "Academic Affairs to set your program.";
+                               + "CDI to set your program.";
             return;
         }
 
@@ -380,7 +380,7 @@ public class EvaluationController : Controller
         if (model.FacultyList.Count == 0)
             model.StageMessage = "No faculty are currently assigned to teach courses in your "
                                + "program for this semester. Teaching assignments are imported "
-                               + "by Academic Affairs from the Teaching Memo.";
+                               + "by CDI Staff on the Teaching Assignments page.";
     }
 
     /// <summary>
@@ -430,7 +430,7 @@ public class EvaluationController : Controller
 
         if (model.Groups.Count == 0)
             model.StageMessage = "Every Program Chair has a designated evaluator, so there is "
-                               + "nothing for the AA account to evaluate this period.";
+                               + "nothing for the CDI account to evaluate this period.";
     }
 
     private static FacultyToEvaluateViewModel ToRosterEntry(

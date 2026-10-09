@@ -308,71 +308,6 @@ public class AdminController : Controller
 
     public record StageProgress(int Submitted, int Expected);
 
-    // --- Faculty-Subject Assignment ---
-    public async Task<IActionResult> Subjects()
-    {
-        var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
-        var subjects = activeSemester is not null
-            ? await _db.FacultySubjects
-                .Include(fs => fs.Faculty)
-                .Include(fs => fs.Semester)
-                .Include(fs => fs.Program).ThenInclude(p => p!.College)
-                .Where(fs => fs.SemesterId == activeSemester.Id)
-                .OrderBy(fs => fs.Faculty.LastName).ThenBy(fs => fs.Faculty.FirstName).ThenBy(fs => fs.CourseCode)
-                .ToListAsync()
-            : [];
-
-        ViewBag.ActiveSemester = activeSemester;
-        ViewBag.Faculty = new SelectList(await TeachingStaffAsync(), "Id", "SortName");
-
-        // SUP-02: the owning program must be recorded against each course
-        ViewBag.Programs = new SelectList(
-            (await _db.AcademicPrograms.Include(p => p.College).OrderBy(p => p.Name).ToListAsync())
-                .Select(p => new { p.Id, Label = $"{p.Name} ({p.Code})" }),
-            "Id", "Label");
-        return View(subjects);
-    }
-
-    /// <summary>Active faculty, Program Chairs and Deans, alphabetically.</summary>
-    private async Task<List<ApplicationUser>> TeachingStaffAsync()
-    {
-        var ids = await (from ur in _db.UserRoles
-                         join r in _db.Roles on ur.RoleId equals r.Id
-                         where r.Name == "Faculty" || r.Name == "ProgramChair" || r.Name == "Dean"
-                         select ur.UserId).Distinct().ToListAsync();
-
-        return await _db.Users
-            .Where(u => u.IsActive && ids.Contains(u.Id))
-            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
-            .ToListAsync();
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateSubject(string facultyId, string courseCode, string? courseTitle, string? section, int? programId)
-    {
-        var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
-        if (activeSemester is null)
-        {
-            TempData["Error"] = "No active semester.";
-            return RedirectToAction("Subjects");
-        }
-
-        _db.FacultySubjects.Add(new FacultySubject
-        {
-            FacultyId = facultyId,
-            SemesterId = activeSemester.Id,
-            CourseCode = CourseCodes.Clean(courseCode),
-            CourseKey = CourseCodes.Key(courseCode),
-            CourseTitle = string.IsNullOrWhiteSpace(courseTitle) ? null : courseTitle.Trim(),
-            Section = section,
-            ProgramId = programId
-        });
-        await _db.SaveChangesAsync();
-        TempData["Success"] = "Course assigned.";
-        return RedirectToAction("Subjects");
-    }
-
     // --- Student Enrollment ---
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Enrollments(int subjectId, string? search)
@@ -448,37 +383,6 @@ public class AdminController : Controller
         return RedirectToAction("Enrollments", new { subjectId });
     }
 
-    // --- Compute Results ---
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ComputeResults(int periodId)
-    {
-        await _evalService.ComputeResultsAsync(periodId);
-        TempData["Success"] = "Results computed successfully.";
-        return RedirectToAction("Results", new { periodId });
-    }
-
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Results(int? periodId)
-    {
-        var periods = await _db.EvaluationPeriods.Include(p => p.Semester)
-            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id).ToListAsync();
-        periodId ??= periods.FirstOrDefault()?.Id;
-        ViewBag.Periods = new SelectList(periods, "Id", "DisplayName", periodId);
-
-        var results = periodId.HasValue
-            ? await _db.EvaluationResults
-                .Include(r => r.Faculty).ThenInclude(f => f.College)
-                .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
-                .Where(r => r.EvaluationPeriodId == periodId.Value)
-                .OrderBy(r => r.Faculty.LastName).ThenBy(r => r.Faculty.FirstName)
-                .ToListAsync()
-            : [];
-
-        return View(results);
-    }
-
     // --- Colleges ---
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Colleges()
@@ -510,118 +414,14 @@ public class AdminController : Controller
         return RedirectToAction("Colleges");
     }
 
-    // --- Evaluation Criteria Management ---
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Criteria()
-    {
-        var categories = await _db.EvaluationCategories
-            .Include(c => c.Criteria.OrderBy(cr => cr.SortOrder))
-            .OrderBy(c => c.EvaluatorType)
-            .ThenBy(c => c.SortOrder)
-            .ToListAsync();
-        return View(categories);
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateCategory(string name, string evaluatorType, int sortOrder)
-    {
-        _db.EvaluationCategories.Add(new EvaluationCategory
-        {
-            Name = name,
-            EvaluatorType = evaluatorType,
-            SortOrder = sortOrder
-        });
-        await _db.SaveChangesAsync();
-        TempData["Success"] = $"Category \"{name}\" created.";
-        return RedirectToAction("Criteria");
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateCategory(int id, string name, string evaluatorType, int sortOrder)
-    {
-        var category = await _db.EvaluationCategories.FindAsync(id);
-        if (category is not null)
-        {
-            category.Name = name;
-            category.EvaluatorType = evaluatorType;
-            category.SortOrder = sortOrder;
-            await _db.SaveChangesAsync();
-            TempData["Success"] = $"Category \"{name}\" updated.";
-        }
-        return RedirectToAction("Criteria");
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteCategory(int id)
-    {
-        var category = await _db.EvaluationCategories.Include(c => c.Criteria).FirstOrDefaultAsync(c => c.Id == id);
-        if (category is not null)
-        {
-            _db.EvaluationCriteria.RemoveRange(category.Criteria);
-            _db.EvaluationCategories.Remove(category);
-            await _db.SaveChangesAsync();
-            TempData["Success"] = $"Category \"{category.Name}\" and its criteria deleted.";
-        }
-        return RedirectToAction("Criteria");
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateCriterion(int categoryId, string description, int sortOrder)
-    {
-        _db.EvaluationCriteria.Add(new EvaluationCriterion
-        {
-            CategoryId = categoryId,
-            Description = description,
-            SortOrder = sortOrder
-        });
-        await _db.SaveChangesAsync();
-        TempData["Success"] = "Criterion added.";
-        return RedirectToAction("Criteria");
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateCriterion(int id, string description, int sortOrder)
-    {
-        var criterion = await _db.EvaluationCriteria.FindAsync(id);
-        if (criterion is not null)
-        {
-            criterion.Description = description;
-            criterion.SortOrder = sortOrder;
-            await _db.SaveChangesAsync();
-            TempData["Success"] = "Criterion updated.";
-        }
-        return RedirectToAction("Criteria");
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteCriterion(int id)
-    {
-        var criterion = await _db.EvaluationCriteria.FindAsync(id);
-        if (criterion is not null)
-        {
-            _db.EvaluationCriteria.Remove(criterion);
-            await _db.SaveChangesAsync();
-            TempData["Success"] = "Criterion deleted.";
-        }
-        return RedirectToAction("Criteria");
-    }
-
     private async Task PopulateDropdowns()
     {
         ViewBag.Colleges = new SelectList(await _db.Colleges.OrderBy(c => c.Name).ToListAsync(), "Id", "Name");
         ViewBag.Programs = new SelectList(await _db.AcademicPrograms.OrderBy(p => p.Name).ToListAsync(), "Id", "Name");
-        ViewBag.Roles = new SelectList(new[] { "AA", "AAStaff", "Admin", "CEO", "Dean", "Faculty", "ProgramChair", "QA", "Student" });
+        ViewBag.Roles = new SelectList(
+            new[] { "AA", "AAStaff", "Admin", "CEO", "Dean", "Faculty", "ProgramChair", "QA", "Student" }
+                .Select(r => new { Value = r, Text = RoleNames.Display(r) })
+                .OrderBy(r => r.Text),
+            "Value", "Text");
     }
 }

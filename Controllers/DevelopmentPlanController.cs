@@ -42,7 +42,7 @@ public class DevelopmentPlanController : Controller
 
     // =====================================================================
     // Faculty side: own results, IFER/FEDAF and Development Plans
-    // FC-03: opens on the most recent semester. FC-04: search to look further back.
+    // FC-03: opens on the current (active) semester. FC-04: search to look further back.
     // =====================================================================
 
     [Authorize(Roles = "Faculty,ProgramChair")]
@@ -91,12 +91,11 @@ public class DevelopmentPlanController : Controller
         {
             items = all.Where(i => i.Period.SemesterId == semesterId.Value).ToList();
         }
-        else if (semesters.Count > 0)
+        else if (await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive) is { } current)
         {
-            var latest = semesters[0];
-            items = all.Where(i => i.Period.SemesterId == latest.Id).ToList();
+            items = all.Where(i => i.Period.SemesterId == current.Id).ToList();
             ViewBag.DefaultedToLatest = true;
-            ViewBag.LatestSemester = latest;
+            ViewBag.LatestSemester = current;
         }
 
         ViewBag.Semesters = semesters;

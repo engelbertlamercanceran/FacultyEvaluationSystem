@@ -28,7 +28,7 @@ public static class DbSeeder
         // have no owning program, which would leave them invisible to every Program
         // Chair (PC-01). Fall back to the teaching faculty's own program so existing
         // data stays usable. The Teaching Memo sets this properly going forward, and
-        // AA Staff can correct any row on the Teaching Memo screen.
+        // CDI Staff can correct any row on the Teaching Assignments screen.
         var unassigned = await context.FacultySubjects
             .Include(fs => fs.Faculty)
             .Where(fs => fs.ProgramId == null && fs.Faculty.ProgramId != null)
@@ -39,6 +39,23 @@ public static class DbSeeder
             foreach (var assignment in unassigned)
                 assignment.ProgramId = assignment.Faculty.ProgramId;
 
+            await context.SaveChangesAsync();
+        }
+
+        // AA was renamed CDI. Test accounts seeded under the old names are renamed
+        // too; accounts whose names were changed by hand are left alone.
+        var oldAaNames = await context.Users
+            .Where(u => (u.Email == "aa@isuc.edu.ph" && u.FirstName == "Academic" && u.LastName == "Affairs")
+                     || (u.Email == "aastaff@isuc.edu.ph" && u.FirstName == "AA" && u.LastName == "Staff"))
+            .ToListAsync();
+
+        if (oldAaNames.Count > 0)
+        {
+            foreach (var u in oldAaNames)
+            {
+                u.FirstName = "CDI";
+                u.LastName = u.Email == "aa@isuc.edu.ph" ? "Head" : "Staff";
+            }
             await context.SaveChangesAsync();
         }
 
@@ -72,8 +89,8 @@ public static class DbSeeder
             {
                 UserName = "aa@isuc.edu.ph",
                 Email = "aa@isuc.edu.ph",
-                FirstName = "Academic",
-                LastName = "Affairs",
+                FirstName = "CDI",
+                LastName = "Head",
                 EmailConfirmed = true
             };
             await userManager.CreateAsync(aa, "Aa@12345");
@@ -87,7 +104,7 @@ public static class DbSeeder
             {
                 UserName = "aastaff@isuc.edu.ph",
                 Email = "aastaff@isuc.edu.ph",
-                FirstName = "AA",
+                FirstName = "CDI",
                 LastName = "Staff",
                 EmailConfirmed = true
             };

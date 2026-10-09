@@ -85,7 +85,7 @@
             <div style="padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
                 <small style="opacity:0.6;">Signed in as</small><br/>
                 <strong style="font-size:13px;">@currentUser!.FullName</strong><br/>
-                <span class="badge bg-warning text-dark" style="font-size:10px;">@role</span>
+                <span class="badge bg-warning text-dark" style="font-size:10px;">@FacultyEvalSystem.Models.RoleNames.Display(role)</span>
             </div>
 
             @if (role is "Admin" or "CEO" or "Dean" or "ProgramChair" or "AA" or "AAStaff" or "QA")
@@ -93,7 +93,7 @@
                 <div class="nav-section">Main</div>
                 <a class="nav-link" asp-controller="Dashboard" asp-action="Index">Dashboard</a>
 
-                if (role is "Admin" or "CEO" or "AA")
+                if (role is "CEO" or "AA" or "AAStaff")
                 {
                     <a class="nav-link" asp-controller="Results" asp-action="Index">Evaluation Results</a>
                 }
@@ -101,33 +101,31 @@
                 if (role == "Admin")
                 {
                     <div class="nav-section">Management</div>
-                    <a class="nav-link" asp-controller="Admin" asp-action="Users">Users</a>
+                    <a class="nav-link" asp-controller="Admin" asp-action="Users">User Management</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Colleges">Colleges & Programs</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
-                    <a class="nav-link" asp-controller="Admin" asp-action="Criteria">Evaluation Criteria</a>
-                    <a class="nav-link" asp-controller="TeachingMemo" asp-action="Index">Teaching Memo</a>
-                    <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Course Assignments</a>
-                    <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Batch Import</a>
+                    <a class="nav-link" asp-controller="TeachingAssignments" asp-action="Index">Teaching Assignments</a>
                 }
 
-                @* AAS-01/02/03: AA Staff own the Teaching Memo, course assignment
-                   and the stage-by-stage opening of the evaluation. *@
+                @* AAS-01/02/03: CDI Staff own the teaching assignments and the
+                   stage-by-stage opening of the evaluation. *@
                 if (role == "AAStaff")
                 {
-                    <div class="nav-section">Academic Affairs</div>
-                    <a class="nav-link" asp-controller="TeachingMemo" asp-action="Index">Teaching Memo</a>
-                    <a class="nav-link" asp-controller="Admin" asp-action="Subjects">Faculty Teaching Load</a>
+                    <div class="nav-section">CDI</div>
+                    <a class="nav-link" asp-controller="TeachingAssignments" asp-action="Index">Teaching Assignments</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Schedule</a>
                     <a class="nav-link" asp-controller="BatchImport" asp-action="Index">Faculty &amp; Student Import</a>
+                    <a class="nav-link" asp-controller="Criteria" asp-action="Index">Evaluation Criteria</a>
                 }
 
                 @* AA-01/02 *@
                 if (role == "AA")
                 {
-                    <div class="nav-section">Academic Affairs</div>
+                    <div class="nav-section">CDI</div>
                     <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Program Chairs</a>
                     <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
                     <a class="nav-link" asp-controller="Reports" asp-action="RawDataIndex">Raw Evaluation Data</a>
+                    <a class="nav-link" asp-controller="Criteria" asp-action="Index">Evaluation Criteria</a>
                     <a class="nav-link" asp-controller="QualityAssurance" asp-action="CollegeSummary">Summary per College</a>
                     <a class="nav-link" asp-controller="QualityAssurance" asp-action="Feedback">Feedback & Comments</a>
                 }
@@ -159,7 +157,7 @@
                     <a class="nav-link" asp-controller="Results" asp-action="Index">All Results</a>
                 }
 
-                if (role is "Admin" or "CEO")
+                if (role is "CEO")
                 {
                     <div class="nav-section">Quality Assurance</div>
                     <a class="nav-link" asp-controller="QualityAssurance" asp-action="CollegeSummary">Summary per College</a>

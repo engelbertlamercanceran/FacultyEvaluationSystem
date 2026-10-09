@@ -29,7 +29,6 @@
                         <th class="text-center">Students</th>
                         <th class="text-center">SEF Rating</th>
                         <th class="text-center">Supervisors</th>
-                        <th>SET Description</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -44,9 +43,6 @@
                             <td class="text-center">@r.StudentRespondents</td>
                             <td class="text-center"><strong>@r.SupervisorRating.ToString("F2")</strong></td>
                             <td class="text-center">@r.SupervisorRespondents</td>
-                            <td>
-                                <span class="badge bg-secondary">@r.StudentDescriptiveRating</span>
-                            </td>
                             <td>
                                 <a asp-controller="Reports" asp-action="IFER" asp-route-periodId="@r.EvaluationPeriodId" asp-route-facultyId="@r.FacultyId"
                                    class="btn btn-outline-secondary btn-sm">IFER</a>

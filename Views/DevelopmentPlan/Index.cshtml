@@ -40,12 +40,12 @@
     </div>
 </div>
 
-@* FC-03: opens on the most recent semester *@
+@* FC-03: opens on the current semester *@
 @if (defaultedToLatest && latestSemester is not null && totalRecords > Model.Count)
 {
     <div class="alert alert-light border small py-2 d-flex justify-content-between align-items-center">
         <span>
-            Showing your most recent semester (<strong>@latestSemester.DisplayName</strong>).
+            Showing the current semester (<strong>@latestSemester.DisplayName</strong>).
             You have @totalRecords record@(totalRecords == 1 ? "" : "s") in total.
         </span>
         <a asp-action="Index" asp-route-semesterId="" class="btn btn-outline-secondary btn-sm">Show all semesters</a>
@@ -55,9 +55,11 @@
 @if (!Model.Any())
 {
     <div class="alert alert-info">
-        @(totalRecords == 0
-            ? "No evaluation results or Development Plans yet."
-            : "No records match your search. Try a different semester or reset the filter.")
+        @(defaultedToLatest && latestSemester is not null
+            ? $"No results yet for {latestSemester.DisplayName}. Results appear here once the evaluation is closed."
+            : totalRecords == 0
+                ? "No evaluation results or Development Plans yet."
+                : "No records match your search. Try a different semester or reset the filter.")
     </div>
 }
 
@@ -117,7 +119,7 @@
                 {
                     <button type="button" class="btn btn-outline-secondary btn-sm"
                             onclick="showPreview('@Url.Action("IFER", "Reports", new { periodId = period.Id, preview = true })', 'IFER')">
-                        View IFER
+                        View SET Rating
                     </button>
                     <button type="button" class="btn btn-outline-info btn-sm"
                             onclick="showPreview('@Url.Action("FEDAF", "Reports", new { periodId = period.Id, preview = true })', 'FEDAF')">

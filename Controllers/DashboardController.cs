@@ -15,6 +15,7 @@ public class DashboardController : Controller
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly EvaluationService _evalService;
+    private readonly EvaluatorAssignmentService _assignments;
 
     // DA-01: the dashboard covers the five most recent semesters
     private const int FiveSemesters = 5;
@@ -53,11 +54,38 @@ public class DashboardController : Controller
             .ThenByDescending(p => p.Id)
             .FirstOrDefaultAsync();
 
-    public DashboardController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService)
+    public DashboardController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService,
+        EvaluatorAssignmentService assignments)
     {
         _db = db;
         _userManager = userManager;
         _evalService = evalService;
+        _assignments = assignments;
+    }
+
+    /// <summary>
+    /// Program Chairs and Deans see only the faculty assigned to them: a Chair, the
+    /// faculty of their program and those teaching its courses (PC-01); a Dean, the
+    /// faculty and Program Chairs of their college. Null for everyone else, who see
+    /// the whole institution.
+    /// </summary>
+    private async Task<HashSet<string>?> AssignedFacultyAsync()
+    {
+        if (!User.IsInRole("ProgramChair") && !User.IsInRole("Dean")) return null;
+
+        var user = await _userManager.GetUserAsync(User);
+        var roles = await _userManager.GetRolesAsync(user!);
+
+        // A Chair's cross-department faculty come from the current semester's teaching load
+        var periodId = await _db.EvaluationPeriods
+            .Where(p => p.Semester.IsActive)
+            .OrderByDescending(p => p.Id)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync()
+            ?? (await GetLatestPeriodWithResultsAsync())?.Id
+            ?? 0;
+
+        return (await _assignments.GetDevelopmentPlanScopeAsync(user!, roles, periodId)).ToHashSet();
     }
 
     // Admin/Dean/ProgramChair dashboard
@@ -74,6 +102,7 @@ public class DashboardController : Controller
         // (AAS-03), so keying off the active period left these panels empty for the
         // whole time an evaluation was actually running.
         var resultsPeriod = await GetLatestPeriodWithResultsAsync();
+        var assigned = await AssignedFacultyAsync();
 
         var results = resultsPeriod is not null
             ? await _db.EvaluationResults
@@ -81,6 +110,8 @@ public class DashboardController : Controller
                 .Where(r => r.EvaluationPeriodId == resultsPeriod.Id)
                 .ToListAsync()
             : [];
+        if (assigned is not null)
+            results = results.Where(r => assigned.Contains(r.FacultyId)).ToList();
 
         // College performance (based on SET rating) — all nine colleges, alphabetically
         var collegePerf = (await _db.Colleges.OrderBy(c => c.Name).ToListAsync())
@@ -111,6 +142,8 @@ public class DashboardController : Controller
             .Include(r => r.Faculty).ThenInclude(f => f.Program)
             .Where(r => recentSemesterIds.Contains(r.EvaluationPeriod.SemesterId))
             .ToListAsync();
+        if (assigned is not null)
+            recentResults = recentResults.Where(r => assigned.Contains(r.FacultyId)).ToList();
 
         var trends = recentResults
             .GroupBy(r => r.EvaluationPeriod.Semester)
@@ -131,12 +164,17 @@ public class DashboardController : Controller
         var students = await _userManager.GetUsersInRoleAsync("Student");
         var faculty = await _userManager.GetUsersInRoleAsync("Faculty");
 
+        var assignedIds = assigned?.ToList() ?? [];
+
         var model = new AdminDashboardViewModel
         {
             TotalStudents = students.Count,
-            TotalFaculty = faculty.Count,
+            TotalFaculty = assigned?.Count ?? faculty.Count,
             TotalColleges = await _db.Colleges.CountAsync(),
-            TotalEvaluations = await _db.Evaluations.CountAsync(),
+            TotalEvaluations = assigned is null
+                ? await _db.Evaluations.CountAsync()
+                : await _db.Evaluations.CountAsync(e => assignedIds.Contains(e.FacultyId)),
+            IsScopedToAssignedFaculty = assigned is not null,
             ActiveSemester = activeSemester,
             ActivePeriod = activePeriod,
             ResultsPeriod = resultsPeriod,
@@ -259,12 +297,29 @@ public class DashboardController : Controller
                 latest.EvaluationPeriodId, user!.Id, "Student");
         }
 
+        // The five most recent semesters up to the current one, whether or not
+        // this faculty member has results in them yet
+        var current = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+        var trendSemesters = (await _db.Semesters
+                .Where(s => current == null || s.SortKey <= current.SortKey)
+                .OrderByDescending(s => s.SortKey)
+                .Take(FiveSemesters)
+                .ToListAsync())
+            .OrderBy(s => s.SortKey)
+            .ToList();
+
         var model = new FacultyDashboardViewModel
         {
             FacultyName = user!.FullName,
             LatestResult = latest,
             History = history,
-            CategoryBreakdown = breakdown
+            CategoryBreakdown = breakdown,
+            TrendLabels = trendSemesters.Select(s => s.DisplayName).ToList(),
+            TrendRatings = trendSemesters
+                .Select(s => history.FirstOrDefault(h => h.EvaluationPeriod.SemesterId == s.Id) is { StudentRespondents: > 0 } r
+                    ? (double?)r.StudentRating
+                    : null)
+                .ToList()
         };
 
         return View(model);
@@ -275,6 +330,8 @@ public class DashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> ChartData(string type)
     {
+        var assigned = await AssignedFacultyAsync();
+
         switch (type)
         {
             case "college":
@@ -282,10 +339,17 @@ public class DashboardController : Controller
                 var latestPeriod = await GetLatestPeriodWithResultsAsync();
                 if (latestPeriod is null) return Json(new { labels = Array.Empty<string>(), data = Array.Empty<double>() });
 
-                var collegeData = await _db.EvaluationResults
+                var collegeQuery = _db.EvaluationResults
                     .Include(r => r.Faculty).ThenInclude(f => f.College)
                     .Where(r => r.EvaluationPeriodId == latestPeriod.Id && r.Faculty.College != null
-                             && r.StudentRespondents > 0)
+                             && r.StudentRespondents > 0);
+                if (assigned is not null)
+                    {
+                    var assignedIds = assigned.ToList();
+                    collegeQuery = collegeQuery.Where(r => assignedIds.Contains(r.FacultyId));
+                }
+
+                var collegeData = await collegeQuery
                     .GroupBy(r => r.Faculty.College!.Code)
                     .Select(g => new { Label = g.Key, Avg = Math.Round(g.Average(r => r.StudentRating), 2) })
                     .ToListAsync();
@@ -304,6 +368,8 @@ public class DashboardController : Controller
                     .Include(r => r.EvaluationPeriod).ThenInclude(p => p.Semester)
                     .Where(r => recentIds.Contains(r.EvaluationPeriod.SemesterId))
                     .ToListAsync();
+                if (assigned is not null)
+                    allResults = allResults.Where(r => assigned.Contains(r.FacultyId)).ToList();
 
                 var trendData = allResults
                     .GroupBy(r => r.EvaluationPeriod.Semester)
@@ -327,6 +393,8 @@ public class DashboardController : Controller
                     .Include(r => r.Faculty).ThenInclude(f => f.Program)
                     .Where(r => ids.Contains(r.EvaluationPeriod.SemesterId))
                     .ToListAsync();
+                if (assigned is not null)
+                    compResults = compResults.Where(r => assigned.Contains(r.FacultyId)).ToList();
 
                 var comparative = BuildComparativeAnalysis(compResults, semesters);
 

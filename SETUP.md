@@ -81,15 +81,16 @@ The system is seeded with a default admin account:
 |--------------------|------------|
 | admin@isuc.edu.ph  | Admin@123  |
 
-### Step 7: Load Demo Data (Optional)
+### Step 7: Load the Semester's Data
 
-To populate the system with sample data for demonstration:
+The system starts with roles, test accounts, the CMO 19 criteria, the colleges and programs, and five semesters. Faculty and students are imported:
 
-1. Log in as admin
-2. Navigate to **Batch Import** (in the sidebar)
-3. Click **"Run Quick Demo Setup"**
+1. Log in as CDI Staff (`aastaff@isuc.edu.ph`)
+2. Go to **Faculty & Student Import**
+3. **Import Faculty**: upload the Faculty Workload Summary (`.xlsx`)
+4. **Import Student**: upload the Registrar's masterlist (`.xlsx` or `.csv`)
 
-This creates: 5 colleges, 4 programs, 34 users (3 deans, 1 program chair, 10 faculty, 20 students), 3 semesters, 3 evaluation periods, subject assignments, enrollments, sample evaluations, and computed results — all in one click.
+The Administrator reaches the same two imports from **User Management**. Teaching assignments can be corrected afterwards on the **Teaching Assignments** page.
 
 ---
 
