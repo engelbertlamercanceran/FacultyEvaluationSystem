@@ -52,7 +52,7 @@ public class DemoController : Controller
         var students = (await _userManager.GetUsersInRoleAsync("Student")).Count;
 
         var problem = periods.Count == 0
-            ? "No evaluation periods exist. CDI Staff must create one under Evaluation Schedule first."
+            ? "No evaluation periods exist. CDI or CDI Staff must create one under Evaluation Schedule first."
             : faculty == 0 || students == 0
                 ? "No faculty or students exist. Run Import Faculty and Import Student first."
                 : null;

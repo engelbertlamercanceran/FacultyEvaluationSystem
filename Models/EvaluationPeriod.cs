@@ -16,7 +16,7 @@ public class EvaluationPeriod
     public DateTime EndDate { get; set; }
 
     // AAS-03: the period runs as a sequence of stages rather than one window
-    // open to everybody at once. AA Staff advances it one stage at a time.
+    // open to everybody at once. CDI advances it one stage at a time.
     public EvaluationStage Stage { get; set; } = EvaluationStage.NotStarted;
 
     public DateTime? StudentStageOpenedAt { get; set; }
@@ -39,9 +39,9 @@ public class EvaluationPeriod
         "Student" => IsStudentStageOpen,
         "ProgramChair" => IsSupervisorStageOpen,
         "Dean" => IsDeanStageOpen,
-        // AA stands in for a Program Chair with no designated evaluator (AA-01),
-        // so it submits during the same stage the Dean does.
-        "AA" => IsDeanStageOpen,
+        // The CDI office stands in for a Program Chair with no designated evaluator
+        // (AA-01), so it submits during the same stage the Dean does.
+        "AA" or "AAStaff" => IsDeanStageOpen,
         _ => false
     };
 

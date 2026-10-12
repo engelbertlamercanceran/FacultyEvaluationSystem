@@ -188,7 +188,7 @@ public class DevelopmentPlanController : Controller
     // Supervisor side
     // =====================================================================
 
-    [Authorize(Roles = "Dean,ProgramChair,AA")]
+    [Authorize(Roles = "Dean,ProgramChair,AA,AAStaff")]
     public async Task<IActionResult> Manage(int? periodId)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -237,7 +237,7 @@ public class DevelopmentPlanController : Controller
         return View(rows);
     }
 
-    [Authorize(Roles = "Dean,ProgramChair,AA")]
+    [Authorize(Roles = "Dean,ProgramChair,AA,AAStaff")]
     [HttpGet]
     public async Task<IActionResult> Review(int periodId, string facultyId)
     {
@@ -264,7 +264,7 @@ public class DevelopmentPlanController : Controller
         ViewBag.Faculty = faculty;
         ViewBag.Result = result;
         ViewBag.CanEdit = !plan.IsLocked;
-        ViewBag.CanFinalize = plan.IsAcknowledged && !plan.IsFinalized && FinalizerId(plan) == user!.Id;
+        ViewBag.CanFinalize = plan.IsAcknowledged && !plan.IsFinalized && IsFinalizer(plan, user!, roles);
         ViewBag.Finalizer = await NameOfAsync(plan.Id == 0 ? null : FinalizerId(plan));
         ViewBag.CreatedBy = await NameOfAsync(plan.CreatedById);
         return View(plan);
@@ -275,7 +275,7 @@ public class DevelopmentPlanController : Controller
     /// notifies the faculty member — and, when the Dean creates it, the Program Chair
     /// concerned as well.
     /// </summary>
-    [Authorize(Roles = "Dean,ProgramChair,AA")]
+    [Authorize(Roles = "Dean,ProgramChair,AA,AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Review(int evaluationPeriodId, string facultyId,
@@ -305,7 +305,8 @@ public class DevelopmentPlanController : Controller
         if (plan is null)
         {
             var creatorRole = roles.Contains("ProgramChair") ? "ProgramChair"
-                            : roles.Contains("Dean") ? "Dean" : "AA";
+                            : roles.Contains("Dean") ? "Dean"
+                            : roles.Contains("AA") ? "AA" : "AAStaff";
 
             plan = new DevelopmentPlan
             {
@@ -385,19 +386,20 @@ public class DevelopmentPlanController : Controller
     /// The Program Chair finalizes the Development Plan after the faculty member has
     /// acknowledged it. The plan is then locked and read-only for everybody.
     /// </summary>
-    [Authorize(Roles = "Dean,ProgramChair,AA")]
+    [Authorize(Roles = "Dean,ProgramChair,AA,AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Finalize(int evaluationPeriodId, string facultyId)
     {
         var user = await _userManager.GetUserAsync(User);
+        var roles = await _userManager.GetRolesAsync(user!);
 
         var plan = await _db.DevelopmentPlans
             .FirstOrDefaultAsync(d => d.EvaluationPeriodId == evaluationPeriodId && d.FacultyId == facultyId);
 
         if (plan is null) return NotFound();
 
-        if (FinalizerId(plan) != user!.Id)
+        if (!IsFinalizer(plan, user!, roles))
         {
             TempData["Error"] = "Only the Program Chair concerned can finalize this Development Plan.";
             return RedirectToAction(nameof(Review), new { periodId = evaluationPeriodId, facultyId });
@@ -416,7 +418,7 @@ public class DevelopmentPlanController : Controller
         }
 
         plan.FinalizedAt = DateTime.Now;
-        plan.FinalizedById = user.Id;
+        plan.FinalizedById = user!.Id;
 
         var semesterId = await SemesterOfAsync(evaluationPeriodId);
         _notifications.Add([plan.FacultyId],
@@ -440,6 +442,16 @@ public class DevelopmentPlanController : Controller
         => plan.ProgramChairId ?? plan.CreatedById ?? plan.SupervisorId;
 
     /// <summary>
+    /// The finalizer, or — for a plan the CDI office created — anyone in the CDI
+    /// office, since CDI and CDI Staff act as one.
+    /// </summary>
+    private static bool IsFinalizer(DevelopmentPlan plan, ApplicationUser user, IList<string> roles)
+        => FinalizerId(plan) == user.Id
+           || (plan.ProgramChairId is null && IsCdiOfficePlan(plan) && RoleNames.IsCdiOffice(roles));
+
+    private static bool IsCdiOfficePlan(DevelopmentPlan plan) => RoleNames.IsCdiOffice(plan.CreatedByRole);
+
+    /// <summary>
     /// A supervisor may open a plan when the faculty member is within their scope,
     /// or when they are the Program Chair / creator recorded on the plan.
     /// </summary>
@@ -447,6 +459,9 @@ public class DevelopmentPlanController : Controller
         string facultyId, int periodId, DevelopmentPlan? plan)
     {
         if (plan is not null && (plan.ProgramChairId == user.Id || plan.CreatedById == user.Id))
+            return true;
+
+        if (plan is not null && IsCdiOfficePlan(plan) && RoleNames.IsCdiOffice(roles))
             return true;
 
         var ids = await _assignments.GetDevelopmentPlanScopeAsync(user, roles, periodId);

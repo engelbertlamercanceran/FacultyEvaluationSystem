@@ -7,6 +7,16 @@ namespace FacultyEvalSystem.Models;
 /// </summary>
 public static class RoleNames
 {
+    /// <summary>
+    /// The CDI office: CDI and CDI Staff have the same features and act as one
+    /// office, so either can carry on the other's work.
+    /// </summary>
+    public static readonly string[] CdiOffice = ["AA", "AAStaff"];
+
+    public static bool IsCdiOffice(string? role) => role is "AA" or "AAStaff";
+
+    public static bool IsCdiOffice(IEnumerable<string> roles) => roles.Any(IsCdiOffice);
+
     public static string Display(string? role) => role switch
     {
         "AA" => "CDI",

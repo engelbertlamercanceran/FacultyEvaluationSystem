@@ -41,7 +41,7 @@ public class DashboardController : Controller
     /// <summary>
     /// The most recent evaluation period that actually holds computed results.
     ///
-    /// Results are only computed when AA Staff closes a period (AAS-03), so the
+    /// Results are only computed when CDI closes a period (AAS-03), so the
     /// period currently being evaluated has none. Anything that reports on results
     /// must use this rather than the active or highest-numbered period, or it
     /// renders empty for the entire duration of an evaluation.
@@ -98,7 +98,7 @@ public class DashboardController : Controller
             .FirstOrDefaultAsync(p => p.Stage != EvaluationStage.NotStarted && p.Stage != EvaluationStage.Closed);
 
         // Results-based panels must key off the most recent period that HAS results,
-        // not the active one. A period holds no results until AA Staff closes it
+        // not the active one. A period holds no results until CDI closes it
         // (AAS-03), so keying off the active period left these panels empty for the
         // whole time an evaluation was actually running.
         var resultsPeriod = await GetLatestPeriodWithResultsAsync();

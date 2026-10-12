@@ -88,7 +88,8 @@
                                 <span class="badge bg-danger">Inactive</span>
                             }
                         </td>
-                        <td>
+                        <td class="text-nowrap">
+                            <a asp-action="EditUser" asp-route-id="@user.Id" class="btn btn-outline-primary btn-sm">Edit</a>
                             <form asp-action="ToggleUser" method="post" style="display:inline;">
                                 <input type="hidden" name="id" value="@user.Id" />
                                 <button type="submit" class="btn btn-outline-secondary btn-sm">

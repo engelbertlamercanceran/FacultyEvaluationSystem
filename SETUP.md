@@ -85,12 +85,12 @@ The system is seeded with a default admin account:
 
 The system starts with roles, test accounts, the CMO 19 criteria, the colleges and programs, and five semesters. Faculty and students are imported:
 
-1. Log in as CDI Staff (`aastaff@isuc.edu.ph`)
-2. Go to **Faculty & Student Import**
+1. Log in as the Administrator (`admin@isuc.edu.ph`)
+2. Go to **User Management**
 3. **Import Faculty**: upload the Faculty Workload Summary (`.xlsx`)
 4. **Import Student**: upload the Registrar's masterlist (`.xlsx` or `.csv`)
 
-The Administrator reaches the same two imports from **User Management**. Teaching assignments can be corrected afterwards on the **Teaching Assignments** page.
+CDI (`cdi@isuc.edu.ph`) and CDI Staff (`cdistaff@isuc.edu.ph`) have the same menus. They can import the Teaching Memo and correct teaching assignments on the **Teaching Assignments** page, and they run the evaluation from **Evaluation Schedule**.
 
 ---
 

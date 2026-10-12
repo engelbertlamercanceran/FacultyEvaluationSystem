@@ -59,6 +59,22 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // The CDI test accounts' login e-mails followed the rename as well:
+        // aa@ -> cdi@ and aastaff@ -> cdistaff@. Passwords are unchanged.
+        foreach (var (oldEmail, newEmail) in new[]
+                 {
+                     ("aa@isuc.edu.ph", "cdi@isuc.edu.ph"),
+                     ("aastaff@isuc.edu.ph", "cdistaff@isuc.edu.ph")
+                 })
+        {
+            var account = await userManager.FindByEmailAsync(oldEmail);
+            if (account is null || await userManager.FindByEmailAsync(newEmail) is not null) continue;
+
+            account.Email = newEmail;
+            account.UserName = newEmail;
+            await userManager.UpdateAsync(account);
+        }
+
         // Seed roles
         string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student", "AA", "AAStaff", "QA"];
         foreach (var role in roles)
@@ -82,13 +98,13 @@ public static class DbSeeder
             await userManager.AddToRoleAsync(admin, "Admin");
         }
 
-        // Seed AA test user
-        if (await userManager.FindByEmailAsync("aa@isuc.edu.ph") is null)
+        // Seed CDI test user (role key "AA")
+        if (await userManager.FindByEmailAsync("cdi@isuc.edu.ph") is null)
         {
             var aa = new ApplicationUser
             {
-                UserName = "aa@isuc.edu.ph",
-                Email = "aa@isuc.edu.ph",
+                UserName = "cdi@isuc.edu.ph",
+                Email = "cdi@isuc.edu.ph",
                 FirstName = "CDI",
                 LastName = "Head",
                 EmailConfirmed = true
@@ -97,13 +113,13 @@ public static class DbSeeder
             await userManager.AddToRoleAsync(aa, "AA");
         }
 
-        // Seed AA Staff test user
-        if (await userManager.FindByEmailAsync("aastaff@isuc.edu.ph") is null)
+        // Seed CDI Staff test user (role key "AAStaff")
+        if (await userManager.FindByEmailAsync("cdistaff@isuc.edu.ph") is null)
         {
             var aaStaff = new ApplicationUser
             {
-                UserName = "aastaff@isuc.edu.ph",
-                Email = "aastaff@isuc.edu.ph",
+                UserName = "cdistaff@isuc.edu.ph",
+                Email = "cdistaff@isuc.edu.ph",
                 FirstName = "CDI",
                 LastName = "Staff",
                 EmailConfirmed = true
@@ -229,7 +245,7 @@ public static class DbSeeder
         // The nine colleges with their programs, and the five semesters
         // (1st Semester, A.Y. 2026-2027 current). Faculty and students are not
         // seeded: they come from the Faculty Workload Summary and the Registrar's
-        // masterlist, uploaded by AA Staff.
+        // masterlist, uploaded by the Administrator.
         var import = services.GetRequiredService<DataImportService>();
         await import.EnsureCatalogAsync();
 

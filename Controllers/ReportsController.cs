@@ -426,7 +426,7 @@ public class ReportsController : Controller
     /// subject and the section, but never the individual who submitted a response.
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "AA,Admin")]
+    [Authorize(Roles = "AA,AAStaff,Admin")]
     public async Task<IActionResult> RawData(int periodId, string facultyId)
     {
         var faculty = await _userManager.FindByIdAsync(facultyId);
@@ -502,7 +502,7 @@ public class ReportsController : Controller
 
     /// <summary>AA-02: pick a faculty member to export raw data for.</summary>
     [HttpGet]
-    [Authorize(Roles = "AA,Admin")]
+    [Authorize(Roles = "AA,AAStaff,Admin")]
     public async Task<IActionResult> RawDataIndex(int? periodId)
     {
         var periods = await _db.EvaluationPeriods

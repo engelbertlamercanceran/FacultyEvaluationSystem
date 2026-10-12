@@ -6,7 +6,7 @@
     var selectedPeriodId = (int?)ViewBag.SelectedPeriodId;
 
     var isDean = User.IsInRole("Dean");
-    var isAa = User.IsInRole("AA");
+    var isAa = User.IsInRole("AA") || User.IsInRole("AAStaff");
     var rosterLabel = isDean
         ? "Faculty and Program Chairs under your college"
         : isAa

@@ -11,7 +11,7 @@ namespace FacultyEvalSystem.Services;
 ///
 /// PC-01  Program Chair -> faculty teaching courses owned by their program
 /// DN-01  Dean          -> Program Chairs in their college
-/// AA-01  AA            -> Program Chairs with no designated evaluator
+/// AA-01  CDI office    -> Program Chairs with no designated evaluator
 /// </summary>
 public class EvaluatorAssignmentService
 {
@@ -120,11 +120,17 @@ public class EvaluatorAssignmentService
         if (roles.Contains("Dean"))
             return (await GetChairsForDeanAsync(user)).Select(c => c.Id).ToList();
 
-        if (roles.Contains("AA"))
+        if (RoleNames.IsCdiOffice(roles))
             return (await GetChairsWithoutEvaluatorAsync()).Select(c => c.Id).ToList();
 
         return [];
     }
+
+    /// <summary>
+    /// Ids of the CDI and CDI Staff accounts. They act as one office: an evaluation
+    /// or Development Plan by either counts for both.
+    /// </summary>
+    public Task<List<string>> GetCdiOfficeIdsAsync() => UserIdsInRolesAsync(RoleNames.CdiOffice);
 
     /// <summary>Ids of active users holding any of the given roles.</summary>
     private async Task<List<string>> UserIdsInRolesAsync(params string[] roleNames)
@@ -139,7 +145,7 @@ public class EvaluatorAssignmentService
     /// Whose Development Plans a supervisor may create and edit:
     ///   Program Chair -> the faculty they evaluate (PC-01) plus the faculty of their program;
     ///   Dean          -> every faculty member and Program Chair under their college;
-    ///   AA            -> Program Chairs with no designated evaluator (AA-01).
+    ///   CDI office    -> Program Chairs with no designated evaluator (AA-01).
     /// </summary>
     public async Task<List<string>> GetDevelopmentPlanScopeAsync(
         ApplicationUser user, IList<string> roles, int periodId)
@@ -170,7 +176,7 @@ public class EvaluatorAssignmentService
                 .ToListAsync();
         }
 
-        if (roles.Contains("AA"))
+        if (RoleNames.IsCdiOffice(roles))
             return (await GetChairsWithoutEvaluatorAsync()).Select(c => c.Id).ToList();
 
         return [];

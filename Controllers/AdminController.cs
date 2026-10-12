@@ -10,7 +10,9 @@ using FacultyEvalSystem.ViewModels;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,AAStaff")]
+// Every action carries its own role rule: User Management, Semesters and Colleges
+// are Administrator-only; the Evaluation Schedule belongs to the CDI office.
+[Authorize(Roles = "Admin,AA,AAStaff")]
 public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
@@ -160,6 +162,117 @@ public class AdminController : Controller
         return RedirectToAction("Users");
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpGet]
+    public async Task<IActionResult> EditUser(string id)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+
+        var role = (await _userManager.GetRolesAsync(user)).OrderBy(r => r).FirstOrDefault() ?? "";
+        await PopulateDropdowns();
+        return View(new EditUserViewModel
+        {
+            Id = user.Id,
+            FirstName = user.FirstName,
+            MiddleName = user.MiddleName,
+            LastName = user.LastName,
+            Suffix = user.Suffix,
+            Email = user.Email ?? "",
+            Role = role,
+            IdNumber = role == "Student" ? user.StudentNumber : user.EmployeeNumber,
+            CollegeId = user.CollegeId,
+            ProgramId = user.ProgramId,
+            MustChangePassword = user.MustChangePassword
+        });
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditUser(EditUserViewModel model)
+    {
+        var user = await _userManager.FindByIdAsync(model.Id);
+        if (user is null) return NotFound();
+
+        var currentRoles = await _userManager.GetRolesAsync(user);
+        var roleChanged = !currentRoles.Contains(model.Role) || currentRoles.Count != 1;
+
+        // An Administrator cannot take the Admin role away from themselves
+        if (roleChanged && user.Id == _userManager.GetUserId(User))
+            ModelState.AddModelError(nameof(model.Role), "You cannot change your own role.");
+
+        if (!ModelState.IsValid)
+        {
+            model.MustChangePassword = user.MustChangePassword;
+            await PopulateDropdowns();
+            return View(model);
+        }
+
+        var email = model.Email.Trim();
+        var idNumber = string.IsNullOrWhiteSpace(model.IdNumber) ? null : model.IdNumber.Trim();
+        user.FirstName = model.FirstName.Trim();
+        user.MiddleName = string.IsNullOrWhiteSpace(model.MiddleName) ? null : model.MiddleName.Trim();
+        user.LastName = model.LastName.Trim();
+        user.Suffix = string.IsNullOrWhiteSpace(model.Suffix) ? null : model.Suffix.Trim();
+        user.Email = email;
+        user.UserName = email; // the e-mail is the login
+        user.StudentNumber = model.Role == "Student" ? idNumber : null;
+        user.EmployeeNumber = model.Role != "Student" ? idNumber : null;
+        user.CollegeId = model.CollegeId;
+        user.ProgramId = model.ProgramId;
+
+        // UpdateAsync also rejects an e-mail already used by another account
+        var result = await _userManager.UpdateAsync(user);
+        if (result.Succeeded && roleChanged)
+        {
+            result = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            if (result.Succeeded)
+                result = await _userManager.AddToRoleAsync(user, model.Role);
+        }
+
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+                ModelState.AddModelError("", error.Description);
+            model.MustChangePassword = user.MustChangePassword;
+            await PopulateDropdowns();
+            return View(model);
+        }
+
+        TempData["Success"] = $"User {user.FullName} updated.";
+        return RedirectToAction("Users");
+    }
+
+    /// <summary>
+    /// Resets the password to the system's default password, which the user must
+    /// change on their next login, the same as an imported account.
+    /// </summary>
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(string id, [FromServices] DataImportService import)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await _userManager.ResetPasswordAsync(user, token, import.DefaultPassword);
+        if (result.Succeeded)
+        {
+            user.MustChangePassword = true;
+            result = await _userManager.UpdateAsync(user);
+        }
+
+        if (result.Succeeded)
+            TempData["Success"] = $"Password of {user.FullName} reset to the default password ({import.DefaultPassword}). "
+                                + "They must change it on their next login.";
+        else
+            TempData["Error"] = string.Join(" ", result.Errors.Select(e => e.Description));
+
+        return RedirectToAction(nameof(EditUser), new { id });
+    }
+
     // --- Semester Management ---
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Semesters()
@@ -183,8 +296,8 @@ public class AdminController : Controller
         return RedirectToAction("Semesters");
     }
 
-    // --- Evaluation Period Management ---
-    [Authorize(Roles = "AAStaff")]
+    // --- Evaluation Period Management (CDI and CDI Staff) ---
+    [Authorize(Roles = "AA,AAStaff")]
     public async Task<IActionResult> Periods()
     {
         var periods = await _db.EvaluationPeriods
@@ -195,17 +308,24 @@ public class AdminController : Controller
         ViewBag.Semesters = new SelectList(
             await _db.Semesters.OrderByDescending(s => s.SortKey).ToListAsync(), "Id", "DisplayName");
 
-        // AAS-03: progress figures so AA Staff can see whether the current
+        // AAS-03: progress figures so CDI can see whether the current
         // stage is finished before advancing to the next one.
         ViewBag.Progress = await BuildStageProgressAsync(periods);
+        ViewBag.ReopenableId = await ReopenablePeriodIdAsync();
         return View(periods);
     }
 
-    [Authorize(Roles = "AAStaff")]
+    [Authorize(Roles = "AA,AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreatePeriod(string name, int semesterId, DateTime startDate, DateTime endDate)
     {
+        if (endDate < startDate)
+        {
+            TempData["Error"] = "The end date cannot be earlier than the start date.";
+            return RedirectToAction("Periods");
+        }
+
         _db.EvaluationPeriods.Add(new EvaluationPeriod
         {
             Name = name,
@@ -219,11 +339,131 @@ public class AdminController : Controller
         return RedirectToAction("Periods");
     }
 
+    /// <summary>Edit a period's name and dates. Extending it means moving the end date.</summary>
+    [Authorize(Roles = "AA,AAStaff")]
+    [HttpGet]
+    public async Task<IActionResult> EditPeriod(int id)
+    {
+        var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstOrDefaultAsync(p => p.Id == id);
+        if (period is null) return NotFound();
+        return View(period);
+    }
+
+    [Authorize(Roles = "AA,AAStaff")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditPeriod(int id, string name, DateTime startDate, DateTime endDate)
+    {
+        var period = await _db.EvaluationPeriods.FindAsync(id);
+        if (period is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(name) || endDate < startDate)
+        {
+            TempData["Error"] = string.IsNullOrWhiteSpace(name)
+                ? "Please enter a name for the evaluation period."
+                : "The end date cannot be earlier than the start date.";
+            return RedirectToAction(nameof(EditPeriod), new { id });
+        }
+
+        var extended = endDate.Date > period.EndDate.Date;
+        period.Name = name.Trim();
+        period.StartDate = startDate;
+        period.EndDate = endDate;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = extended
+            ? $"{period.Name} extended to {endDate:MMMM dd, yyyy}."
+            : $"{period.Name} updated.";
+        return RedirectToAction("Periods");
+    }
+
     /// <summary>
-    /// AAS-03: AA Staff advances the period one stage at a time — students first,
+    /// Reopens a closed period at the student, supervisor (Program Chair) or Dean
+    /// stage for evaluators who had not finished. From there it moves through the
+    /// remaining stages as usual; closing it again recomputes the results.
+    /// </summary>
+    [Authorize(Roles = "AA,AAStaff")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReopenPeriod(int id, EvaluationStage stage, DateTime? endDate)
+    {
+        var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstOrDefaultAsync(p => p.Id == id);
+        if (period is null) return NotFound();
+
+        if (!period.IsClosed)
+        {
+            TempData["Error"] = "Only a closed evaluation period can be reopened.";
+            return RedirectToAction("Periods");
+        }
+
+        if (stage is not (EvaluationStage.StudentEvaluation or EvaluationStage.SupervisorEvaluation
+                          or EvaluationStage.DeanEvaluation))
+        {
+            TempData["Error"] = "Please choose which evaluation to reopen.";
+            return RedirectToAction("Periods");
+        }
+
+        // The evaluation pages work on the most recent period, so only that one
+        // can be reopened, and only while no other period is running.
+        if (await ReopenablePeriodIdAsync() != period.Id)
+        {
+            TempData["Error"] = "Only the most recent evaluation period can be reopened, "
+                              + "and only while no other evaluation period is in progress.";
+            return RedirectToAction("Periods");
+        }
+
+        if (endDate.HasValue && endDate.Value < period.StartDate)
+        {
+            TempData["Error"] = "The new end date cannot be earlier than the start date.";
+            return RedirectToAction("Periods");
+        }
+
+        period.Stage = stage;
+        period.ClosedAt = null;
+        if (endDate.HasValue) period.EndDate = endDate.Value;
+        var now = DateTime.Now;
+        switch (stage)
+        {
+            case EvaluationStage.StudentEvaluation: period.StudentStageOpenedAt = now; break;
+            case EvaluationStage.SupervisorEvaluation: period.SupervisorStageOpenedAt = now; break;
+            case EvaluationStage.DeanEvaluation: period.DeanStageOpenedAt = now; break;
+        }
+
+        await NotifyStageOpenedAsync(period, stage, reopened: true);
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"{period.Name} reopened at the {EvaluationPeriod.StageLabel(stage)} stage. "
+                            + "Close it again when everyone has finished; the results are recomputed on closing.";
+        return RedirectToAction("Periods");
+    }
+
+    /// <summary>
+    /// The one period that may be reopened: the most recent period that has started,
+    /// provided it is closed and no other period is in progress. Null otherwise.
+    /// </summary>
+    private async Task<int?> ReopenablePeriodIdAsync()
+    {
+        var latest = await _db.EvaluationPeriods
+            .Include(p => p.Semester)
+            .Where(p => p.Stage != EvaluationStage.NotStarted)
+            .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id)
+            .FirstOrDefaultAsync();
+
+        if (latest is null || !latest.IsClosed) return null;
+
+        var otherRunning = await _db.EvaluationPeriods.AnyAsync(p => p.Id != latest.Id
+            && (p.Stage == EvaluationStage.StudentEvaluation
+                || p.Stage == EvaluationStage.SupervisorEvaluation
+                || p.Stage == EvaluationStage.DeanEvaluation));
+
+        return otherRunning ? null : latest.Id;
+    }
+
+    /// <summary>
+    /// AAS-03: CDI advances the period one stage at a time: students first,
     /// then Program Chairs, then Deans, then closed.
     /// </summary>
-    [Authorize(Roles = "AAStaff")]
+    [Authorize(Roles = "AA,AAStaff")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AdvancePeriodStage(int id)
@@ -249,27 +489,7 @@ public class AdminController : Controller
         }
 
         await _db.Entry(period).Reference(p => p.Semester).LoadAsync();
-
-        // In-app notifications when the supervisors' evaluation opens: both the
-        // Deans and the Program Chairs are told it is open and available.
-        if (next.Value == EvaluationStage.SupervisorEvaluation)
-        {
-            _notifications.Add(await _assignments.GetSupervisorIdsAsync(),
-                "Staff Evaluation for Supervisors is now open",
-                $"The supervisor evaluation for {period.Semester.DisplayName} is open and available. "
-                + "Program Chairs may now evaluate the faculty teaching in their programs.",
-                Url.Action("SupervisorEvaluate", "Evaluation"));
-        }
-        else if (next.Value == EvaluationStage.DeanEvaluation)
-        {
-            var deans = (await _userManager.GetUsersInRoleAsync("Dean")).Where(d => d.IsActive).Select(d => d.Id);
-            var aa = (await _userManager.GetUsersInRoleAsync("AA")).Where(d => d.IsActive).Select(d => d.Id);
-            _notifications.Add(deans.Concat(aa),
-                "Dean Evaluation of Program Chairs is now open",
-                $"The evaluation of Program Chairs for {period.Semester.DisplayName} is open and available.",
-                Url.Action("SupervisorEvaluate", "Evaluation"));
-        }
-
+        await NotifyStageOpenedAsync(period, next.Value, reopened: false);
         await _db.SaveChangesAsync();
 
         // Closing the period computes the results for everyone evaluated in it.
@@ -280,25 +500,56 @@ public class AdminController : Controller
         return RedirectToAction("Periods");
     }
 
-    /// <summary>Counts of submitted vs expected evaluations for the stage each period is in.</summary>
+    /// <summary>
+    /// In-app notifications when the supervisors' evaluation opens (the Deans and
+    /// the Program Chairs are told it is open), and when the Dean evaluation of
+    /// Program Chairs opens (the Deans and the CDI office).
+    /// </summary>
+    private async Task NotifyStageOpenedAsync(EvaluationPeriod period, EvaluationStage stage, bool reopened)
+    {
+        var verb = reopened ? "has been reopened" : "is now open";
+
+        if (stage == EvaluationStage.SupervisorEvaluation)
+        {
+            _notifications.Add(await _assignments.GetSupervisorIdsAsync(),
+                $"Staff Evaluation for Supervisors {verb}",
+                $"The supervisor evaluation for {period.Semester.DisplayName} {verb} and available. "
+                + "Program Chairs may now evaluate the faculty teaching in their programs.",
+                Url.Action("SupervisorEvaluate", "Evaluation"));
+        }
+        else if (stage == EvaluationStage.DeanEvaluation)
+        {
+            var deans = (await _userManager.GetUsersInRoleAsync("Dean")).Where(d => d.IsActive).Select(d => d.Id);
+            var cdiOffice = await _assignments.GetCdiOfficeIdsAsync();
+            var cdi = await _db.Users.Where(u => u.IsActive && cdiOffice.Contains(u.Id)).Select(u => u.Id).ToListAsync();
+            _notifications.Add(deans.Concat(cdi),
+                $"Dean Evaluation of Program Chairs {verb}",
+                $"The evaluation of Program Chairs for {period.Semester.DisplayName} {verb} and available.",
+                Url.Action("SupervisorEvaluate", "Evaluation"));
+        }
+    }
+
+    /// <summary>
+    /// Counts of submitted vs expected evaluations for the stage each period is in.
+    /// For a closed period, the student figures, so CDI can see whether students
+    /// are still missing before deciding to reopen it.
+    /// </summary>
     private async Task<Dictionary<int, StageProgress>> BuildStageProgressAsync(List<EvaluationPeriod> periods)
     {
         var progress = new Dictionary<int, StageProgress>();
 
         foreach (var period in periods)
         {
+            var students = period.Stage is EvaluationStage.StudentEvaluation or EvaluationStage.Closed;
+
             var submitted = await _db.Evaluations
                 .CountAsync(e => e.EvaluationPeriodId == period.Id
-                              && e.EvaluatorType == (period.Stage == EvaluationStage.StudentEvaluation
-                                    ? "Student" : "Supervisor"));
+                              && e.EvaluatorType == (students ? "Student" : "Supervisor"));
 
-            int expected = period.Stage switch
-            {
-                // One evaluation per enrolled student per class they are taking.
-                EvaluationStage.StudentEvaluation => await _db.StudentEnrollments
-                    .CountAsync(se => se.FacultySubject.SemesterId == period.SemesterId),
-                _ => 0
-            };
+            // One evaluation per enrolled student per class they are taking.
+            int expected = students
+                ? await _db.StudentEnrollments.CountAsync(se => se.FacultySubject.SemesterId == period.SemesterId)
+                : 0;
 
             progress[period.Id] = new StageProgress(submitted, expected);
         }

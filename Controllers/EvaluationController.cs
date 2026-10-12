@@ -164,14 +164,8 @@ public class EvaluationController : Controller
             return RedirectToAction(evaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
         }
 
-        // Check if already evaluated
-        var exists = await _db.Evaluations.AnyAsync(e =>
-            e.EvaluatorId == user!.Id &&
-            e.FacultyId == facultyId &&
-            e.FacultySubjectId == subjectId &&
-            e.EvaluationPeriodId == periodId);
-
-        if (exists)
+        // Check if already evaluated (by this user, or by the CDI office as a whole)
+        if (await AlreadyEvaluatedAsync(user!, roles, facultyId, subjectId, periodId))
         {
             TempData["Error"] = "You have already submitted an evaluation for this faculty member.";
             return RedirectToAction(evaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
@@ -227,6 +221,12 @@ public class EvaluationController : Controller
             return RedirectToAction(model.EvaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
         }
 
+        if (await AlreadyEvaluatedAsync(user!, roles, model.FacultyId, model.FacultySubjectId, model.EvaluationPeriodId))
+        {
+            TempData["Error"] = "An evaluation for this faculty member has already been submitted.";
+            return RedirectToAction(model.EvaluatorType == "Student" ? "Index" : "SupervisorEvaluate");
+        }
+
         // Validate all ratings are provided
         var allCriteria = model.Categories.SelectMany(c => c.Criteria).ToList();
         if (allCriteria.Any(c => c.Rating < 1 || c.Rating > 5))
@@ -262,6 +262,24 @@ public class EvaluationController : Controller
             : RedirectToAction("Index");
     }
 
+    /// <summary>
+    /// Whose submissions count as this user's own. CDI and CDI Staff are one office,
+    /// so a Program Chair evaluated by either is done for both.
+    /// </summary>
+    private async Task<List<string>> EvaluatorIdsForAsync(ApplicationUser user, IList<string> roles)
+        => RoleNames.IsCdiOffice(roles) ? await _assignments.GetCdiOfficeIdsAsync() : [user.Id];
+
+    private async Task<bool> AlreadyEvaluatedAsync(ApplicationUser user, IList<string> roles,
+        string facultyId, int? subjectId, int periodId)
+    {
+        var evaluatorIds = await EvaluatorIdsForAsync(user, roles);
+        return await _db.Evaluations.AnyAsync(e =>
+            evaluatorIds.Contains(e.EvaluatorId) &&
+            e.FacultyId == facultyId &&
+            e.FacultySubjectId == subjectId &&
+            e.EvaluationPeriodId == periodId);
+    }
+
     /// <summary>AAS-03: is the given period at the stage this evaluator submits in?</summary>
     private async Task<bool> IsStageOpenForAsync(int periodId, IList<string> roles)
     {
@@ -278,13 +296,13 @@ public class EvaluationController : Controller
     // Supervisor roster. Who appears depends on the signed-in role:
     //   PC-01  Program Chair -> faculty teaching courses owned by their program
     //   DN-01  Dean          -> Program Chairs in their college, grouped per program
-    //   AA-01  AA            -> Program Chairs with no designated evaluator
-    [Authorize(Roles = "Dean,ProgramChair,AA")]
+    //   AA-01  CDI office    -> Program Chairs with no designated evaluator
+    [Authorize(Roles = "Dean,ProgramChair,AA,AAStaff")]
     public async Task<IActionResult> SupervisorEvaluate()
     {
         var user = await _userManager.GetUserAsync(User);
         var roles = await _userManager.GetRolesAsync(user!);
-        var role = roles.FirstOrDefault(r => r is "ProgramChair" or "Dean" or "AA") ?? "";
+        var role = roles.FirstOrDefault(r => r is "ProgramChair" or "Dean" or "AA" or "AAStaff") ?? "";
 
         // Most recent period that has actually started
         var period = await _db.EvaluationPeriods
@@ -309,8 +327,9 @@ public class EvaluationController : Controller
             });
         }
 
+        var evaluatorIds = await EvaluatorIdsForAsync(user!, roles);
         var existingEvals = await _db.Evaluations
-            .Where(e => e.EvaluatorId == user!.Id && e.EvaluationPeriodId == period.Id)
+            .Where(e => evaluatorIds.Contains(e.EvaluatorId) && e.EvaluationPeriodId == period.Id)
             .ToListAsync();
 
         var model = new EvaluationListViewModel { ActivePeriod = period };
@@ -338,7 +357,7 @@ public class EvaluationController : Controller
         {
             model.StageMessage = "Your account is not linked to a program, so the system cannot "
                                + "determine which faculty you are responsible for. Please ask "
-                               + "CDI to set your program.";
+                               + "the Administrator to set your program.";
             return;
         }
 
@@ -380,7 +399,7 @@ public class EvaluationController : Controller
         if (model.FacultyList.Count == 0)
             model.StageMessage = "No faculty are currently assigned to teach courses in your "
                                + "program for this semester. Teaching assignments are imported "
-                               + "by CDI Staff on the Teaching Assignments page.";
+                               + "by CDI on the Teaching Assignments page.";
     }
 
     /// <summary>
@@ -409,7 +428,7 @@ public class EvaluationController : Controller
     }
 
     /// <summary>
-    /// AA-01: the AA account covers Program Chairs who have no designated evaluator.
+    /// AA-01: the CDI office covers Program Chairs who have no designated evaluator.
     /// </summary>
     private async Task BuildAaRosterAsync(
         EvaluationListViewModel model, EvaluationPeriod period, List<Evaluation> existingEvals)
@@ -430,7 +449,7 @@ public class EvaluationController : Controller
 
         if (model.Groups.Count == 0)
             model.StageMessage = "Every Program Chair has a designated evaluator, so there is "
-                               + "nothing for the CDI account to evaluate this period.";
+                               + "nothing for CDI to evaluate this period.";
     }
 
     private static FacultyToEvaluateViewModel ToRosterEntry(
@@ -452,12 +471,14 @@ public class EvaluationController : Controller
     public async Task<IActionResult> MyRating(int evaluationId)
     {
         var user = await _userManager.GetUserAsync(User);
+        var roles = await _userManager.GetRolesAsync(user!);
+        var evaluatorIds = await EvaluatorIdsForAsync(user!, roles);
         var eval = await _db.Evaluations
             .Include(e => e.Responses)
                 .ThenInclude(r => r.Criterion)
                     .ThenInclude(cr => cr.Category)
             .Include(e => e.Faculty)
-            .FirstOrDefaultAsync(e => e.Id == evaluationId && e.EvaluatorId == user!.Id);
+            .FirstOrDefaultAsync(e => e.Id == evaluationId && evaluatorIds.Contains(e.EvaluatorId));
 
         if (eval is null) return NotFound();
 

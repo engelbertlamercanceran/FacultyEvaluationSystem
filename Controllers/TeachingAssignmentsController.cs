@@ -10,18 +10,20 @@ namespace FacultyEvalSystem.Controllers;
 
 /// <summary>
 /// Teaching Assignments: who teaches which course in the active semester. One
-/// page combines the two imports (Teaching Memo CSV and Faculty Workload Summary),
-/// adding a single assignment by hand, and editing or deleting existing ones.
+/// page combines the imports (Teaching Memo CSV, and for the Administrator the
+/// Faculty Workload Summary), adding a single assignment by hand, and editing or
+/// deleting existing ones.
 ///
-/// AAS-01 / AAS-02: CDI Staff imports the Teaching Memo, which is the source of
-/// faculty teaching assignments for a semester. This responsibility transferred
-/// from the MIS Staff account.
+/// AAS-01 / AAS-02: CDI and CDI Staff import the Teaching Memo, which is the source
+/// of faculty teaching assignments for a semester. This responsibility transferred
+/// from the MIS Staff account. The Faculty Workload Summary, which also creates
+/// faculty accounts, is imported by the Administrator only.
 ///
 /// The memo format is the one assumed in OPEN-01 of the requirements spec; the
 /// owning-program column is what allows a Program Chair to be shown the faculty
 /// teaching courses within their program (PC-01 / SUP-02).
 /// </summary>
-[Authorize(Roles = "AAStaff,Admin")]
+[Authorize(Roles = "AA,AAStaff,Admin")]
 public class TeachingAssignmentsController : Controller
 {
     private readonly ApplicationDbContext _db;

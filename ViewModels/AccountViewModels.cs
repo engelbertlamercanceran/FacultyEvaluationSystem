@@ -52,6 +52,46 @@ public class RegisterViewModel
     public int? ProgramId { get; set; }
 }
 
+public class EditUserViewModel
+{
+    [Required]
+    public string Id { get; set; } = "";
+
+    [Required, MaxLength(100)]
+    [Display(Name = "First Name")]
+    public string FirstName { get; set; } = "";
+
+    [MaxLength(100)]
+    [Display(Name = "Middle Name")]
+    public string? MiddleName { get; set; }
+
+    [Required, MaxLength(100)]
+    [Display(Name = "Last Name")]
+    public string LastName { get; set; } = "";
+
+    [MaxLength(20)]
+    public string? Suffix { get; set; }
+
+    [Required, EmailAddress]
+    public string Email { get; set; } = "";
+
+    [Required]
+    public string Role { get; set; } = "";
+
+    [MaxLength(20)]
+    [Display(Name = "Employee/Student Number")]
+    public string? IdNumber { get; set; }
+
+    [Display(Name = "College")]
+    public int? CollegeId { get; set; }
+
+    [Display(Name = "Program")]
+    public int? ProgramId { get; set; }
+
+    // Shown only: still on the default password, waiting for the user to change it
+    public bool MustChangePassword { get; set; }
+}
+
 public class ChangePasswordViewModel
 {
     [Required, DataType(DataType.Password)]

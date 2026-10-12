@@ -22,25 +22,29 @@ else
 {
 <div class="row">
     <div class="col-lg-5">
-        @* Import: the Teaching Memo (CSV) or the Faculty Workload Summary (Excel) *@
+        @* Import: the Teaching Memo (CSV), or for the Administrator also the
+           Faculty Workload Summary (Excel), which creates faculty accounts *@
         <div class="card mb-3">
             <div class="card-header">Import</div>
             <div class="card-body">
                 <p class="text-muted small mb-3">
                     Semester: <strong>@activeSemester.DisplayName</strong>
                 </p>
-                <ul class="nav nav-tabs nav-fill small mb-3" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#importMemo" type="button" role="tab">
-                            Teaching Memo (CSV)
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importWorkload" type="button" role="tab">
-                            Workload Summary (Excel)
-                        </button>
-                    </li>
-                </ul>
+                @if (isAdmin)
+                {
+                    <ul class="nav nav-tabs nav-fill small mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#importMemo" type="button" role="tab">
+                                Teaching Memo (CSV)
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importWorkload" type="button" role="tab">
+                                Workload Summary (Excel)
+                            </button>
+                        </li>
+                    </ul>
+                }
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="importMemo" role="tabpanel">
                         <form asp-action="Import" method="post" enctype="multipart/form-data">
@@ -64,6 +68,8 @@ else
                             the Program Chair who evaluates it.
                         </p>
                     </div>
+                    @if (isAdmin)
+                    {
                     <div class="tab-pane fade" id="importWorkload" role="tabpanel">
                         <form asp-controller="BatchImport" asp-action="ImportWorkload" method="post" enctype="multipart/form-data">
                             <input type="hidden" name="fromAssignments" value="true" />
@@ -78,6 +84,7 @@ else
                             without an account get one with the default password.
                         </p>
                     </div>
+                    }
                 </div>
             </div>
         </div>

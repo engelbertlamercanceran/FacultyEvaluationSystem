@@ -7,7 +7,7 @@ using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin,AAStaff")]
+[Authorize(Roles = "Admin")]
 public class BatchImportController : Controller
 {
     private readonly ApplicationDbContext _db;
