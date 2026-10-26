@@ -378,8 +378,8 @@ public class AdminController : Controller
     }
 
     /// <summary>
-    /// Reopens a closed period at the student, supervisor (Program Chair) or Dean
-    /// stage for evaluators who had not finished. From there it moves through the
+    /// Reopens a closed period at the student or supervisor (Program Chair, Dean
+    /// and CDI) stage for evaluators who had not finished. From there it moves through the
     /// remaining stages as usual; closing it again recomputes the results.
     /// </summary>
     [Authorize(Roles = "AA,AAStaff")]
@@ -396,8 +396,7 @@ public class AdminController : Controller
             return RedirectToAction("Periods");
         }
 
-        if (stage is not (EvaluationStage.StudentEvaluation or EvaluationStage.SupervisorEvaluation
-                          or EvaluationStage.DeanEvaluation))
+        if (stage is not (EvaluationStage.StudentEvaluation or EvaluationStage.SupervisorEvaluation))
         {
             TempData["Error"] = "Please choose which evaluation to reopen.";
             return RedirectToAction("Periods");
@@ -426,7 +425,6 @@ public class AdminController : Controller
         {
             case EvaluationStage.StudentEvaluation: period.StudentStageOpenedAt = now; break;
             case EvaluationStage.SupervisorEvaluation: period.SupervisorStageOpenedAt = now; break;
-            case EvaluationStage.DeanEvaluation: period.DeanStageOpenedAt = now; break;
         }
 
         await NotifyStageOpenedAsync(period, stage, reopened: true);
@@ -453,15 +451,14 @@ public class AdminController : Controller
 
         var otherRunning = await _db.EvaluationPeriods.AnyAsync(p => p.Id != latest.Id
             && (p.Stage == EvaluationStage.StudentEvaluation
-                || p.Stage == EvaluationStage.SupervisorEvaluation
-                || p.Stage == EvaluationStage.DeanEvaluation));
+                || p.Stage == EvaluationStage.SupervisorEvaluation));
 
         return otherRunning ? null : latest.Id;
     }
 
     /// <summary>
     /// AAS-03: CDI advances the period one stage at a time: students first,
-    /// then Program Chairs, then Deans, then closed.
+    /// then the supervisors (Program Chairs and Deans together), then closed.
     /// </summary>
     [Authorize(Roles = "AA,AAStaff")]
     [HttpPost]
@@ -484,7 +481,6 @@ public class AdminController : Controller
         {
             case EvaluationStage.StudentEvaluation: period.StudentStageOpenedAt = now; break;
             case EvaluationStage.SupervisorEvaluation: period.SupervisorStageOpenedAt = now; break;
-            case EvaluationStage.DeanEvaluation: period.DeanStageOpenedAt = now; break;
             case EvaluationStage.Closed: period.ClosedAt = now; break;
         }
 
@@ -501,32 +497,22 @@ public class AdminController : Controller
     }
 
     /// <summary>
-    /// In-app notifications when the supervisors' evaluation opens (the Deans and
-    /// the Program Chairs are told it is open), and when the Dean evaluation of
-    /// Program Chairs opens (the Deans and the CDI office).
+    /// In-app notification when the supervisors' evaluation opens. Program Chairs,
+    /// Deans and the CDI office share one stage, so all of them are told at once.
     /// </summary>
     private async Task NotifyStageOpenedAsync(EvaluationPeriod period, EvaluationStage stage, bool reopened)
     {
-        var verb = reopened ? "has been reopened" : "is now open";
+        if (stage != EvaluationStage.SupervisorEvaluation) return;
 
-        if (stage == EvaluationStage.SupervisorEvaluation)
-        {
-            _notifications.Add(await _assignments.GetSupervisorIdsAsync(),
-                $"Staff Evaluation for Supervisors {verb}",
-                $"The supervisor evaluation for {period.Semester.DisplayName} {verb} and available. "
-                + "Program Chairs may now evaluate the faculty teaching in their programs.",
-                Url.Action("SupervisorEvaluate", "Evaluation"));
-        }
-        else if (stage == EvaluationStage.DeanEvaluation)
-        {
-            var deans = (await _userManager.GetUsersInRoleAsync("Dean")).Where(d => d.IsActive).Select(d => d.Id);
-            var cdiOffice = await _assignments.GetCdiOfficeIdsAsync();
-            var cdi = await _db.Users.Where(u => u.IsActive && cdiOffice.Contains(u.Id)).Select(u => u.Id).ToListAsync();
-            _notifications.Add(deans.Concat(cdi),
-                $"Dean Evaluation of Program Chairs {verb}",
-                $"The evaluation of Program Chairs for {period.Semester.DisplayName} {verb} and available.",
-                Url.Action("SupervisorEvaluate", "Evaluation"));
-        }
+        var verb = reopened ? "has been reopened" : "is now open";
+        var cdiOffice = await _assignments.GetCdiOfficeIdsAsync();
+        var cdi = await _db.Users.Where(u => u.IsActive && cdiOffice.Contains(u.Id)).Select(u => u.Id).ToListAsync();
+        _notifications.Add((await _assignments.GetSupervisorIdsAsync()).Concat(cdi).Distinct(),
+            $"Staff Evaluation for Supervisors {verb}",
+            $"The supervisor evaluation for {period.Semester.DisplayName} {verb} and available. "
+            + "Program Chairs may now evaluate the faculty teaching in their programs, "
+            + "and Deans the Program Chairs under them.",
+            Url.Action("SupervisorEvaluate", "Evaluation"));
     }
 
     /// <summary>

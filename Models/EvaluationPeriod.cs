@@ -20,28 +20,26 @@ public class EvaluationPeriod
     public EvaluationStage Stage { get; set; } = EvaluationStage.NotStarted;
 
     public DateTime? StudentStageOpenedAt { get; set; }
+    // One supervisor stage for Program Chairs and Deans alike: they share the
+    // same schedule, each evaluating only the people assigned to them.
     public DateTime? SupervisorStageOpenedAt { get; set; }
-    public DateTime? DeanStageOpenedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
 
     public bool IsStudentStageOpen => Stage == EvaluationStage.StudentEvaluation;
     public bool IsSupervisorStageOpen => Stage == EvaluationStage.SupervisorEvaluation;
-    public bool IsDeanStageOpen => Stage == EvaluationStage.DeanEvaluation;
     public bool IsClosed => Stage == EvaluationStage.Closed;
 
     public bool IsActive => Stage is EvaluationStage.StudentEvaluation
-                                  or EvaluationStage.SupervisorEvaluation
-                                  or EvaluationStage.DeanEvaluation;
+                                  or EvaluationStage.SupervisorEvaluation;
 
     /// <summary>Is this period currently accepting submissions from the given role?</summary>
     public bool IsOpenFor(string role) => role switch
     {
         "Student" => IsStudentStageOpen,
-        "ProgramChair" => IsSupervisorStageOpen,
-        "Dean" => IsDeanStageOpen,
-        // The CDI office stands in for a Program Chair with no designated evaluator
-        // (AA-01), so it submits during the same stage the Dean does.
-        "AA" or "AAStaff" => IsDeanStageOpen,
+        // Program Chairs evaluate their faculty (PC-01) and Deans their Program
+        // Chairs (DN-01) during the same stage. The CDI office stands in for a
+        // Program Chair with no designated evaluator (AA-01), so it does too.
+        "ProgramChair" or "Dean" or "AA" or "AAStaff" => IsSupervisorStageOpen,
         _ => false
     };
 
@@ -49,8 +47,7 @@ public class EvaluationPeriod
     {
         EvaluationStage.NotStarted => EvaluationStage.StudentEvaluation,
         EvaluationStage.StudentEvaluation => EvaluationStage.SupervisorEvaluation,
-        EvaluationStage.SupervisorEvaluation => EvaluationStage.DeanEvaluation,
-        EvaluationStage.DeanEvaluation => EvaluationStage.Closed,
+        EvaluationStage.SupervisorEvaluation => EvaluationStage.Closed,
         _ => null
     };
 
@@ -63,7 +60,6 @@ public class EvaluationPeriod
         EvaluationStage.NotStarted => "Not Started",
         EvaluationStage.StudentEvaluation => "Student Evaluation",
         EvaluationStage.SupervisorEvaluation => "Supervisor Evaluation",
-        EvaluationStage.DeanEvaluation => "Dean Evaluation",
         EvaluationStage.Closed => "Closed",
         _ => stage.ToString()
     };
@@ -76,6 +72,6 @@ public enum EvaluationStage
     NotStarted = 0,
     StudentEvaluation = 1,
     SupervisorEvaluation = 2,
-    DeanEvaluation = 3,
+    // 3 was a separate Dean stage, merged into SupervisorEvaluation.
     Closed = 4
 }

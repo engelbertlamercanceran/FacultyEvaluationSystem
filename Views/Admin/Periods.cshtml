@@ -11,7 +11,6 @@
         EvaluationStage.NotStarted => "bg-secondary",
         EvaluationStage.StudentEvaluation => "bg-primary",
         EvaluationStage.SupervisorEvaluation => "bg-info text-dark",
-        EvaluationStage.DeanEvaluation => "bg-warning text-dark",
         EvaluationStage.Closed => "bg-dark",
         _ => "bg-secondary"
     };
@@ -54,8 +53,8 @@
                 </p>
                 <ol class="ps-3 mb-2">
                     <li><strong>Student Evaluation</strong> — students evaluate the faculty who teach them.</li>
-                    <li><strong>Supervisor Evaluation</strong> — Program Chairs evaluate faculty teaching in their program.</li>
-                    <li><strong>Dean Evaluation</strong> — Deans evaluate their Program Chairs.</li>
+                    <li><strong>Supervisor Evaluation</strong> — Program Chairs evaluate faculty teaching in their program,
+                        and Deans evaluate their Program Chairs, at the same time.</li>
                     <li><strong>Closed</strong> — no further submissions; results are computed automatically.</li>
                 </ol>
                 <p class="text-muted mb-2">
@@ -109,10 +108,6 @@
                                     {
                                         <br /><small class="text-muted">since @p.SupervisorStageOpenedAt.Value.ToString("MMM dd")</small>
                                     }
-                                    else if (p.Stage == EvaluationStage.DeanEvaluation && p.DeanStageOpenedAt.HasValue)
-                                    {
-                                        <br /><small class="text-muted">since @p.DeanStageOpenedAt.Value.ToString("MMM dd")</small>
-                                    }
                                     else if (p.IsClosed && p.ClosedAt.HasValue)
                                     {
                                         <br /><small class="text-muted">on @p.ClosedAt.Value.ToString("MMM dd")</small>
@@ -162,8 +157,7 @@
                                             <input type="hidden" name="id" value="@p.Id" />
                                             <select name="stage" class="form-select form-select-sm" style="width:auto;" aria-label="Stage to reopen">
                                                 <option value="@((int)EvaluationStage.StudentEvaluation)">Students</option>
-                                                <option value="@((int)EvaluationStage.SupervisorEvaluation)">Program Chairs</option>
-                                                <option value="@((int)EvaluationStage.DeanEvaluation)">Deans &amp; CDI</option>
+                                                <option value="@((int)EvaluationStage.SupervisorEvaluation)">Program Chairs, Deans &amp; CDI</option>
                                             </select>
                                             <input name="endDate" type="date" class="form-control form-control-sm" style="width:auto;"
                                                    title="New end date (optional)" aria-label="New end date (optional)" />

@@ -266,7 +266,6 @@ public class DemoDataSeeder
                     Stage = isCurrent ? EvaluationStage.StudentEvaluation : EvaluationStage.Closed,
                     StudentStageOpenedAt = start,
                     SupervisorStageOpenedAt = isCurrent ? null : start.AddDays(10),
-                    DeanStageOpenedAt = isCurrent ? null : start.AddDays(18),
                     ClosedAt = isCurrent ? null : start.AddDays(30)
                 });
             }
