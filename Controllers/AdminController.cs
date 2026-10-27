@@ -120,6 +120,7 @@ public class AdminController : Controller
             UserName = model.Email,
             Email = model.Email,
             FirstName = model.FirstName,
+            MiddleName = string.IsNullOrWhiteSpace(model.MiddleName) ? null : model.MiddleName.Trim(),
             LastName = model.LastName,
             EmployeeNumber = model.Role != "Student" ? model.IdNumber : null,
             StudentNumber = model.Role == "Student" ? model.IdNumber : null,
