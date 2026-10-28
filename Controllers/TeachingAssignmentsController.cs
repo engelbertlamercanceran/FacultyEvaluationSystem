@@ -16,8 +16,8 @@ namespace FacultyEvalSystem.Controllers;
 ///
 /// AAS-01 / AAS-02: CDI and CDI Staff import the Teaching Memo, which is the source
 /// of faculty teaching assignments for a semester. This responsibility transferred
-/// from the MIS Staff account. The Faculty Workload Summary, which also creates
-/// faculty accounts, is imported by the Administrator only.
+/// from the MIS Staff account. CDI and CDI Staff import the Faculty Workload
+/// Summary, which also creates faculty accounts, from their Workload Summary page.
 ///
 /// The memo format is the one assumed in OPEN-01 of the requirements spec; the
 /// owning-program column is what allows a Program Chair to be shown the faculty

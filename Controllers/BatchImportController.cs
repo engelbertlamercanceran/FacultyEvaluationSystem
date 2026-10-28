@@ -7,7 +7,12 @@ using FacultyEvalSystem.Services;
 
 namespace FacultyEvalSystem.Controllers;
 
-[Authorize(Roles = "Admin")]
+/// <summary>
+/// Faculty and Student imports. The Student Import is the Administrator's; the
+/// Faculty Workload Summary is also imported by CDI and CDI Staff, from their own
+/// Workload Summary page.
+/// </summary>
+[Authorize(Roles = "Admin,AA,AAStaff")]
 public class BatchImportController : Controller
 {
     private readonly ApplicationDbContext _db;
@@ -19,6 +24,7 @@ public class BatchImportController : Controller
         _import = import;
     }
 
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Index()
     {
         var active = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
@@ -40,6 +46,7 @@ public class BatchImportController : Controller
     /// account with the system's default password.
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> ImportRegistrar(IFormFile file)
@@ -82,16 +89,30 @@ public class BatchImportController : Controller
         return RedirectToAction(nameof(Index), null, "registrar");
     }
 
+    /// <summary>The Workload Summary page for CDI and CDI Staff.</summary>
+    public async Task<IActionResult> Workload()
+    {
+        var active = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+        ViewBag.ActiveSemester = active;
+        ViewBag.DefaultPassword = _import.DefaultPassword;
+        if (active is not null)
+            ViewBag.AssignmentCount = await _db.FacultySubjects.CountAsync(fs => fs.SemesterId == active.Id);
+        return View();
+    }
+
     /// <summary>The Faculty Workload Summary: faculty, their college and designation, and the Course Codes they teach.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> ImportWorkload(IFormFile file, bool fromAssignments = false)
     {
-        // The same import is offered on the Teaching Assignments page; return there
+        // The same import is offered on the Teaching Assignments page and on
+        // CDI's Workload Summary page; return to where it was started
         IActionResult Done() => fromAssignments
             ? RedirectToAction("Index", "TeachingAssignments")
-            : RedirectToAction(nameof(Index), null, "workload");
+            : User.IsInRole("Admin")
+                ? RedirectToAction(nameof(Index), null, "workload")
+                : RedirectToAction(nameof(Workload));
 
         if (file is null || file.Length == 0)
         {

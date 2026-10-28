@@ -104,17 +104,17 @@
                     <a class="nav-link" asp-controller="Admin" asp-action="Users">User Management</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Colleges">Colleges & Programs</a>
                     <a class="nav-link" asp-controller="Admin" asp-action="Semesters">Semesters</a>
-                    <a class="nav-link" asp-controller="TeachingAssignments" asp-action="Index">Teaching Assignments</a>
                 }
 
                 @* CDI and CDI Staff have the same menu, so either can carry on the
                    CDI office's work: AAS-01/02/03 (teaching assignments, the
-                   stage-by-stage evaluation schedule) and AA-01/02. *@
+                   Workload Summary, the stage-by-stage evaluation schedule) and AA-01/02. *@
                 if (role is "AA" or "AAStaff")
                 {
                     <div class="nav-section">CDI</div>
                     <a class="nav-link" asp-controller="Admin" asp-action="Periods">Evaluation Schedule</a>
                     <a class="nav-link" asp-controller="TeachingAssignments" asp-action="Index">Teaching Assignments</a>
+                    <a class="nav-link" asp-controller="BatchImport" asp-action="Workload">Workload Summary</a>
                     <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">Evaluate Program Chairs</a>
                     <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
                     <a class="nav-link" asp-controller="Criteria" asp-action="Index">Evaluation Criteria</a>

@@ -1,0 +1,49 @@
+@{
+    ViewData["Title"] = "Workload Summary";
+    var active = ViewBag.ActiveSemester as FacultyEvalSystem.Models.Semester;
+}
+
+@if (active is null)
+{
+    <div class="alert alert-warning">
+        No active semester. Please ask the Administrator to create one first.
+    </div>
+}
+else
+{
+    <div class="alert alert-light border small">
+        Active semester: <strong>@active.DisplayName</strong>
+        &middot; @ViewBag.AssignmentCount faculty course assignments
+    </div>
+
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <strong>Import Workload Summary</strong> <small class="opacity-75">— Faculty Workload Summary</small>
+                </div>
+                <div class="card-body">
+                    <p class="small mb-2">
+                        Upload the campus Faculty Workload Summary (<code>.xlsx</code>) for the active semester. Faculty are
+                        associated with their <strong>College</strong>; Deans and Program Chairs are recognised from the
+                        Designation column and linked to their <strong>Program</strong>. Each Course Code taught becomes a
+                        course assignment. New accounts use the default password <code>@ViewBag.DefaultPassword</code>.
+                    </p>
+                    <form asp-action="ImportWorkload" method="post" enctype="multipart/form-data">
+                        <div class="input-group">
+                            <input type="file" name="file" accept=".xlsx" class="form-control form-control-sm" required />
+                            <button type="submit" class="btn btn-primary btn-sm"
+                                    onclick="if (this.form.checkValidity()) { this.disabled = true; this.innerText = 'Importing…'; this.form.submit(); }">
+                                Import Workload Summary
+                            </button>
+                        </div>
+                    </form>
+                    <p class="small text-muted mt-2 mb-0">
+                        The imported assignments are listed under
+                        <a asp-controller="TeachingAssignments" asp-action="Index">Teaching Assignments</a>.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
