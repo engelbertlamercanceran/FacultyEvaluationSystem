@@ -42,11 +42,6 @@ public class FacultySubject
     public int? ProgramId { get; set; }
     public AcademicProgram? Program { get; set; }
 
-    // AAS-01: the Teaching Memo this assignment came from, kept so an
-    // assignment can be traced back to the document that authorised it.
-    [MaxLength(50)]
-    public string? TeachingMemoNumber { get; set; }
-
     public List<StudentEnrollment> Enrollments { get; set; } = [];
 }
 

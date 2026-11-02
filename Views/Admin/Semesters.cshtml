@@ -1,5 +1,10 @@
 @model List<FacultyEvalSystem.Models.Semester>
-@{ ViewData["Title"] = "Semester Management"; }
+@{
+    ViewData["Title"] = "Semester Management";
+    // Kept when a semester is rejected, so the Administrator can correct it
+    var enteredYear = TempData["AcademicYear"] as string;
+    var enteredTerm = TempData["Term"] as string;
+}
 
 <div class="row">
     <div class="col-md-5">
@@ -9,14 +14,17 @@
                 <form asp-action="CreateSemester" method="post">
                     <div class="mb-3">
                         <label class="form-label">Academic Year</label>
-                        <input name="academicYear" class="form-control" placeholder="e.g. 2025-2026" required />
+                        <input name="academicYear" value="@enteredYear" class="form-control" placeholder="e.g. 2026-2027" required
+                               pattern="\d{4}\s*-\s*\d{4}" title="Two years one year apart, e.g. 2026-2027" />
+                        <small class="text-muted">One-year cycle: the second year must follow the first, e.g. 2026-2027.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Term</label>
                         <select name="term" class="form-select" required>
-                            <option value="1st Semester">1st Semester</option>
-                            <option value="2nd Semester">2nd Semester</option>
-                            <option value="Summer">Summer</option>
+                            @foreach (var t in FacultyEvalSystem.Models.Semester.Terms)
+                            {
+                                <option value="@t" selected="@(t == enteredTerm)">@t</option>
+                            }
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Create & Set Active</button>
@@ -28,8 +36,8 @@
         <div class="card">
             <div class="card-header">Semesters (@Model.Count)</div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead><tr><th>Semester</th><th>Status</th></tr></thead>
+                <table class="table table-hover mb-0 align-middle">
+                    <thead><tr><th>Semester</th><th>Status</th><th class="text-end">Action</th></tr></thead>
                     <tbody>
                         @foreach (var s in Model)
                         {
@@ -43,6 +51,16 @@
                                     else
                                     {
                                         <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    @if (!s.IsActive)
+                                    {
+                                        <form asp-action="SetActiveSemester" method="post" class="d-inline"
+                                              onsubmit="return confirm('Make @s.DisplayName the active semester?');">
+                                            <input type="hidden" name="id" value="@s.Id" />
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">Set Active</button>
+                                        </form>
                                     }
                                 </td>
                             </tr>

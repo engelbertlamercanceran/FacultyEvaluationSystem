@@ -12,6 +12,10 @@ public class EvaluationFormViewModel
     public string? CourseTitle { get; set; }
     public string EvaluatorType { get; set; } = "Student";
 
+    // Shown on the form: the semester and academic year the evaluation is recorded under
+    public string? SemesterName { get; set; }
+    public string? PeriodName { get; set; }
+
     public List<CategoryViewModel> Categories { get; set; } = [];
 
     [MaxLength(1000)]
@@ -96,4 +100,39 @@ public class InstructorChoiceViewModel
 {
     public string CourseCode { get; set; } = "";
     public List<(int FacultySubjectId, string FacultyName, string? College)> Options { get; set; } = [];
+}
+
+/// <summary>Evaluation Monitoring (Dean / Program Chair): student completion for the current period.</summary>
+public class MonitoringViewModel
+{
+    public EvaluationPeriod? Period { get; set; }
+    public string? Message { get; set; }
+    public string ScopeName { get; set; } = "";
+
+    // Dean only: narrow the college down to one program
+    public bool IsDean { get; set; }
+    public List<AcademicProgram> Programs { get; set; } = [];
+    public int? ProgramId { get; set; }
+
+    public List<StudentProgressRow> Completed { get; set; } = [];
+    public List<StudentProgressRow> NotCompleted { get; set; } = [];
+
+    /// <summary>Students in scope with no course to evaluate this semester; left out of the totals.</summary>
+    public int WithoutCourses { get; set; }
+
+    public int Total => Completed.Count + NotCompleted.Count;
+    public int Percent => Total == 0 ? 0 : (int)Math.Round(100.0 * Completed.Count / Total);
+    public int InProgress => NotCompleted.Count(r => r.Done > 0);
+}
+
+public class StudentProgressRow
+{
+    public string Name { get; set; } = "";
+    public string? StudentNumber { get; set; }
+    public string? Email { get; set; }
+    public string? Program { get; set; }
+    public string? Section { get; set; }
+    public int Done { get; set; }
+    public int Due { get; set; }
+    public bool IsComplete => Done >= Due;
 }

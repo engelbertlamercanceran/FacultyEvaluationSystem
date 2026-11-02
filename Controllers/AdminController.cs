@@ -21,7 +21,7 @@ public class AdminController : Controller
     private readonly NotificationService _notifications;
     private readonly EvaluatorAssignmentService _assignments;
 
-    private const int UsersPageSize = 100;
+    private const int UsersPageSize = 25;
 
     public AdminController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, EvaluationService evalService,
         NotificationService notifications, EvaluatorAssignmentService assignments)
@@ -51,15 +51,18 @@ public class AdminController : Controller
         if (collegeId.HasValue)
             query = query.Where(u => u.CollegeId == collegeId);
 
-        if (!string.IsNullOrWhiteSpace(search))
+        // Every word must match somewhere, so "juan cruz" or "bsit 4c" narrow the list down
+        var words = (search ?? "").ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var term in words)
         {
-            var term = search.Trim().ToLower();
             query = query.Where(u =>
                 u.FirstName.ToLower().Contains(term) ||
+                (u.MiddleName != null && u.MiddleName.ToLower().Contains(term)) ||
                 u.LastName.ToLower().Contains(term) ||
                 u.Email!.ToLower().Contains(term) ||
                 (u.EmployeeNumber != null && u.EmployeeNumber.ToLower().Contains(term)) ||
                 (u.StudentNumber != null && u.StudentNumber.ToLower().Contains(term)) ||
+                (u.Section != null && u.Section.ToLower().Contains(term)) ||
                 (u.College != null && u.College.Code.ToLower().Contains(term)) ||
                 (u.Program != null && u.Program.Code.ToLower().Contains(term)));
         }
@@ -109,6 +112,7 @@ public class AdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateUser(RegisterViewModel model)
     {
+        model.CollegeId = await CheckProgramCollegeAsync(model.CollegeId, model.ProgramId);
         if (!ModelState.IsValid)
         {
             await PopulateDropdowns();
@@ -126,6 +130,7 @@ public class AdminController : Controller
             StudentNumber = model.Role == "Student" ? model.IdNumber : null,
             CollegeId = model.CollegeId,
             ProgramId = model.ProgramId,
+            Section = model.Role == "Student" ? CleanSection(model.Section) : null,
             EmailConfirmed = true
         };
 
@@ -184,6 +189,7 @@ public class AdminController : Controller
             IdNumber = role == "Student" ? user.StudentNumber : user.EmployeeNumber,
             CollegeId = user.CollegeId,
             ProgramId = user.ProgramId,
+            Section = user.Section,
             MustChangePassword = user.MustChangePassword
         });
     }
@@ -202,6 +208,8 @@ public class AdminController : Controller
         // An Administrator cannot take the Admin role away from themselves
         if (roleChanged && user.Id == _userManager.GetUserId(User))
             ModelState.AddModelError(nameof(model.Role), "You cannot change your own role.");
+
+        model.CollegeId = await CheckProgramCollegeAsync(model.CollegeId, model.ProgramId);
 
         if (!ModelState.IsValid)
         {
@@ -222,6 +230,7 @@ public class AdminController : Controller
         user.EmployeeNumber = model.Role != "Student" ? idNumber : null;
         user.CollegeId = model.CollegeId;
         user.ProgramId = model.ProgramId;
+        user.Section = model.Role == "Student" ? CleanSection(model.Section) : null;
 
         // UpdateAsync also rejects an e-mail already used by another account
         var result = await _userManager.UpdateAsync(user);
@@ -284,16 +293,52 @@ public class AdminController : Controller
     [Authorize(Roles = "Admin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateSemester(string academicYear, string term)
+    public async Task<IActionResult> CreateSemester(string? academicYear, string? term)
     {
-        // Deactivate all
+        academicYear = (academicYear ?? "").Replace(" ", "");
+        term = (term ?? "").Trim();
+
+        // Checked before anything changes, so a rejected semester leaves the active one alone
+        var error = Semester.ValidateAcademicYear(academicYear);
+        if (error is null && !Semester.Terms.Contains(term))
+            error = "Please choose a term: " + string.Join(", ", Semester.Terms) + ".";
+        if (error is null && await _db.Semesters.AnyAsync(s => s.AcademicYear == academicYear && s.Term == term))
+            error = $"{term}, A.Y. {academicYear} already exists. Each semester can only be created once; "
+                  + "use Set Active on the list to make an existing semester the active one.";
+
+        if (error is not null)
+        {
+            TempData["Error"] = error;
+            TempData["AcademicYear"] = academicYear;
+            TempData["Term"] = term;
+            return RedirectToAction("Semesters");
+        }
+
+        // Only one semester is active at a time
         await _db.Semesters.ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false));
 
         var semester = new Semester { AcademicYear = academicYear, Term = term, IsActive = true };
         semester.RefreshSortKey(); // SUP-01
         _db.Semesters.Add(semester);
         await _db.SaveChangesAsync();
-        TempData["Success"] = "Semester created.";
+        TempData["Success"] = $"{semester.DisplayName} created and set as the active semester.";
+        return RedirectToAction("Semesters");
+    }
+
+    /// <summary>Makes an existing semester the active one (and every other inactive).</summary>
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetActiveSemester(int id)
+    {
+        var semester = await _db.Semesters.FindAsync(id);
+        if (semester is null) return NotFound();
+
+        if (!semester.IsActive)
+        {
+            await _db.Semesters.ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, x => x.Id == id));
+            TempData["Success"] = $"{semester.DisplayName} is now the active semester.";
+        }
         return RedirectToAction("Semesters");
     }
 
@@ -306,8 +351,9 @@ public class AdminController : Controller
             .OrderByDescending(p => p.Semester.SortKey).ThenByDescending(p => p.Id)
             .ToListAsync();
 
-        ViewBag.Semesters = new SelectList(
-            await _db.Semesters.OrderByDescending(s => s.SortKey).ToListAsync(), "Id", "DisplayName");
+        // The active semester is preselected, so new periods follow the Administrator's setting
+        var semesters = await _db.Semesters.OrderByDescending(s => s.SortKey).ToListAsync();
+        ViewBag.Semesters = new SelectList(semesters, "Id", "DisplayName", semesters.FirstOrDefault(s => s.IsActive)?.Id);
 
         // AAS-03: progress figures so CDI can see whether the current
         // stage is finished before advancing to the next one.
@@ -652,10 +698,33 @@ public class AdminController : Controller
         return RedirectToAction("Colleges");
     }
 
+    /// <summary>
+    /// The program must belong to the chosen college. With no college chosen, the
+    /// program's own college is used. Returns the college to save.
+    /// </summary>
+    private async Task<int?> CheckProgramCollegeAsync(int? collegeId, int? programId)
+    {
+        if (programId is null) return collegeId;
+
+        var programCollege = await _db.AcademicPrograms.Where(p => p.Id == programId)
+            .Select(p => (int?)p.CollegeId).FirstOrDefaultAsync();
+
+        if (programCollege is null)
+            ModelState.AddModelError(nameof(RegisterViewModel.ProgramId), "The selected program does not exist.");
+        else if (collegeId is not null && collegeId != programCollege)
+            ModelState.AddModelError(nameof(RegisterViewModel.ProgramId), "The selected program does not belong to the selected college.");
+
+        return collegeId ?? programCollege;
+    }
+
+    private static string? CleanSection(string? section)
+        => string.IsNullOrWhiteSpace(section) ? null : section.Trim().ToUpperInvariant();
+
     private async Task PopulateDropdowns()
     {
         ViewBag.Colleges = new SelectList(await _db.Colleges.OrderBy(c => c.Name).ToListAsync(), "Id", "Name");
-        ViewBag.Programs = new SelectList(await _db.AcademicPrograms.OrderBy(p => p.Name).ToListAsync(), "Id", "Name");
+        // The full list, each tagged with its college; the form shows only the selected college's programs
+        ViewBag.Programs = await _db.AcademicPrograms.OrderBy(p => p.Name).ToListAsync();
         ViewBag.Roles = new SelectList(
             new[] { "AA", "AAStaff", "Admin", "CEO", "Dean", "Faculty", "ProgramChair", "QA", "Student" }
                 .Select(r => new { Value = r, Text = RoleNames.Display(r) })

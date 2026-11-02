@@ -56,8 +56,8 @@
                         <label class="form-label">Course Title <small class="text-muted">(optional)</small></label>
                         <input name="courseTitle" value="@Model.CourseTitle" class="form-control" />
                     </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-7">
+                    <div class="mb-3">
+                        <div>
                             <label class="form-label">Owning Program</label>
                             <select name="programId" class="form-select">
                                 <option value="">— not set —</option>
@@ -66,10 +66,6 @@
                                     <option value="@p.Id" selected="@(p.Id == Model.ProgramId)">@p.Code &mdash; @p.Name</option>
                                 }
                             </select>
-                        </div>
-                        <div class="col-5">
-                            <label class="form-label">Memo No.</label>
-                            <input name="memoNumber" value="@Model.TeachingMemoNumber" class="form-control" />
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Save Changes</button>

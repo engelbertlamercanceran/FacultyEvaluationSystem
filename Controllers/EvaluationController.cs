@@ -182,6 +182,8 @@ public class EvaluationController : Controller
             ? await _db.FacultySubjects.FindAsync(subjectId.Value)
             : null;
 
+        var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstAsync(p => p.Id == periodId);
+
         var model = new EvaluationFormViewModel
         {
             EvaluationPeriodId = periodId,
@@ -190,6 +192,8 @@ public class EvaluationController : Controller
             FacultySubjectId = subjectId,
             CourseTitle = subject?.CourseDisplay,
             EvaluatorType = evaluatorType,
+            SemesterName = period.Semester.DisplayName,
+            PeriodName = period.Name,
             Categories = categories.Select(c => new CategoryViewModel
             {
                 CategoryId = c.Id,
@@ -232,6 +236,13 @@ public class EvaluationController : Controller
         if (allCriteria.Any(c => c.Rating < 1 || c.Rating > 5))
         {
             ModelState.AddModelError("", "Please provide a rating for all criteria.");
+
+            // Header details are display-only, so they are looked up again rather than posted back
+            var period = await _db.EvaluationPeriods.Include(p => p.Semester).FirstAsync(p => p.Id == model.EvaluationPeriodId);
+            model.SemesterName = period.Semester.DisplayName;
+            model.PeriodName = period.Name;
+            model.FacultyName = (await _userManager.FindByIdAsync(model.FacultyId))?.FullName ?? "";
+            model.CourseTitle = model.FacultySubjectId is int sid ? (await _db.FacultySubjects.FindAsync(sid))?.CourseDisplay : null;
             return View(model);
         }
 

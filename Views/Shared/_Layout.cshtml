@@ -130,6 +130,7 @@
                     <a class="nav-link" asp-controller="Evaluation" asp-action="SupervisorEvaluate">
                         @(role == "Dean" ? "Evaluate Program Chairs" : "Evaluate Faculty")
                     </a>
+                    <a class="nav-link" asp-controller="Monitoring" asp-action="Index">Evaluation Monitoring</a>
                     <a class="nav-link" asp-controller="DevelopmentPlan" asp-action="Manage">Development Plans</a>
                 }
 
@@ -246,6 +247,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

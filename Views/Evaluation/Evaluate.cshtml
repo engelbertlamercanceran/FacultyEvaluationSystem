@@ -18,11 +18,26 @@
 </style>
 
 <div class="card mb-3">
-    <div class="card-body">
-        <h5 class="mb-1">@Model.FacultyName</h5>
-        @if (Model.CourseTitle is not null)
+    <div class="card-body d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <h5 class="mb-1">@Model.FacultyName</h5>
+            @if (Model.CourseTitle is not null)
+            {
+                <p class="text-muted mb-0">@Model.CourseTitle</p>
+            }
+        </div>
+        @* The semester comes from the evaluation period, which CDI creates for the
+           Administrator's active semester, so the evaluation is filed under it *@
+        @if (Model.SemesterName is not null)
         {
-            <p class="text-muted mb-0">@Model.CourseTitle</p>
+            <div class="text-end">
+                <small class="text-muted d-block">Evaluating for</small>
+                <span class="badge bg-success fs-6 fw-semibold">@Model.SemesterName</span>
+                @if (!string.IsNullOrEmpty(Model.PeriodName))
+                {
+                    <small class="text-muted d-block mt-1">@Model.PeriodName</small>
+                }
+            </div>
         }
     </div>
 </div>
@@ -45,7 +60,7 @@
             <div class="card-body p-0">
                 <input type="hidden" name="Categories[@c].CategoryId" value="@category.CategoryId" />
                 <input type="hidden" name="Categories[@c].CategoryName" value="@category.CategoryName" />
-                <table class="table mb-0">
+                <table class="table mb-0" data-no-paginate>
                     <thead>
                         <tr>
                             <th style="width:40%">Benchmark Statements</th>

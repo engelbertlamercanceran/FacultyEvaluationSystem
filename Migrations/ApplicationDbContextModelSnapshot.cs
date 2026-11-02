@@ -125,6 +125,10 @@ namespace FacultyEvalSystem.Migrations
                     b.Property<int?>("ProgramId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Section")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
@@ -513,10 +517,6 @@ namespace FacultyEvalSystem.Migrations
 
                     b.Property<int>("SemesterId")
                         .HasColumnType("int");
-
-                    b.Property<string>("TeachingMemoNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 

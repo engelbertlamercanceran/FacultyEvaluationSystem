@@ -54,20 +54,7 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label asp-for="CollegeId" class="form-label"></label>
-                            <select asp-for="CollegeId" asp-items="(SelectList)ViewBag.Colleges" class="form-select">
-                                <option value="">None</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="ProgramId" class="form-label"></label>
-                            <select asp-for="ProgramId" asp-items="(SelectList)ViewBag.Programs" class="form-select">
-                                <option value="">None</option>
-                            </select>
-                        </div>
-                    </div>
+                    <partial name="_CollegeProgramFields" model="(Model.CollegeId, Model.ProgramId, Model.Section)" />
 
                     <div class="d-flex justify-content-between">
                         <a asp-action="Users" class="btn btn-outline-secondary">Cancel</a>

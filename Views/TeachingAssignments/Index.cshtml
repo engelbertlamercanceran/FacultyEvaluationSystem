@@ -118,8 +118,8 @@ else
                         <label class="form-label small mb-1">Course Title <span class="text-muted">(optional)</span></label>
                         <input name="courseTitle" class="form-control form-control-sm" placeholder="e.g. Introduction to Computing" />
                     </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-7">
+                    <div class="mb-3">
+                        <div>
                             <label class="form-label small mb-1">Owning Program</label>
                             <select name="programId" class="form-select form-select-sm" required>
                                 <option value="">Choose program&hellip;</option>
@@ -128,10 +128,6 @@ else
                                     <option value="@p.Id">@p.Code &mdash; @p.Name</option>
                                 }
                             </select>
-                        </div>
-                        <div class="col-5">
-                            <label class="form-label small mb-1">Memo No. <span class="text-muted">(optional)</span></label>
-                            <input name="memoNumber" class="form-control form-control-sm" />
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm w-100">Add Assignment</button>
@@ -186,10 +182,6 @@ else
                             <tr class="@(a.ProgramId is null ? "table-warning" : "")">
                                 <td>
                                     <small>@a.Faculty.SortName</small>
-                                    @if (!string.IsNullOrWhiteSpace(a.TeachingMemoNumber))
-                                    {
-                                        <br /><small class="text-muted" style="font-size:11px;">@a.TeachingMemoNumber</small>
-                                    }
                                 </td>
                                 <td><small>@a.CourseCode<br /><span class="text-muted">@a.CourseTitle</span></small></td>
                                 <td><small>@(a.Section ?? "—")</small></td>

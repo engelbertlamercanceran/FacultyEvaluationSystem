@@ -1,0 +1,114 @@
+@using FacultyEvalSystem.ViewModels
+@model MonitoringViewModel
+@{
+    ViewData["Title"] = "Evaluation Monitoring";
+}
+
+@if (Model.Period is null || Model.Message is not null)
+{
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <h6 class="text-muted">Nothing to monitor yet</h6>
+            <p class="text-muted mb-0">@Model.Message</p>
+        </div>
+    </div>
+    return;
+}
+
+<div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+        <strong>@Model.Period.Name</strong> &mdash; @Model.Period.Semester.DisplayName<br />
+        <small>Student evaluation progress for <strong>@Model.ScopeName</strong> &middot; Current stage: <strong>@Model.Period.StageName</strong></small>
+    </div>
+    @if (Model.IsDean && Model.Programs.Any())
+    {
+        <form method="get" class="d-flex gap-1 align-items-center">
+            <label class="small text-nowrap mb-0" for="programId">Program</label>
+            <select id="programId" name="programId" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">All programs in the college</option>
+                @foreach (var p in Model.Programs)
+                {
+                    <option value="@p.Id" selected="@(p.Id == Model.ProgramId)">@p.Code &mdash; @p.Name</option>
+                }
+            </select>
+        </form>
+    }
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="stat-card"><h3>@Model.Total</h3><p>Students with faculty to evaluate</p></div></div>
+    <div class="col-md-3"><div class="stat-card" style="border-left-color:#28a745;"><h3 style="color:#28a745;">@Model.Completed.Count</h3><p>Completed their evaluations</p></div></div>
+    <div class="col-md-3"><div class="stat-card" style="border-left-color:#dc3545;"><h3 style="color:#dc3545;">@Model.NotCompleted.Count</h3><p>Not yet completed (@Model.InProgress started)</p></div></div>
+    <div class="col-md-3"><div class="stat-card" style="border-left-color:#f0b429;"><h3 style="color:#b07d00;">@Model.Percent%</h3><p>Completion rate</p></div></div>
+</div>
+
+<div class="progress mb-2" style="height:10px;" role="progressbar" aria-valuenow="@Model.Percent" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-bar bg-success" style="width:@Model.Percent%"></div>
+</div>
+<p class="text-muted small mb-3">
+    A student has completed when they have evaluated the instructor of every course they take this semester.
+    @if (Model.WithoutCourses > 0)
+    {
+        <text>@Model.WithoutCourses student@(Model.WithoutCourses == 1 ? " has" : "s have") no course with an instructor on record this semester and @(Model.WithoutCourses == 1 ? "is" : "are") not counted.</text>
+    }
+</p>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#notCompleted" type="button" role="tab">
+                    Not Yet Completed <span class="badge bg-danger">@Model.NotCompleted.Count</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#completed" type="button" role="tab">
+                    Completed <span class="badge bg-success">@Model.Completed.Count</span>
+                </button>
+            </li>
+        </ul>
+        @* Filters both lists by name, ID number, program or block/section *@
+        <input type="search" class="form-control form-control-sm" style="max-width:260px;"
+               placeholder="Search name, ID, program, section" data-table-filter=".monitoring-table" />
+    </div>
+    <div class="card-body p-0 tab-content">
+        @foreach (var (id, rows, done) in new[] { ("notCompleted", Model.NotCompleted, false), ("completed", Model.Completed, true) })
+        {
+            <div class="tab-pane fade @(done ? "" : "show active")" id="@id" role="tabpanel">
+                <table class="table table-hover table-sm mb-0 align-middle monitoring-table">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Student No.</th>
+                            <th>Program</th>
+                            <th>Block/Section</th>
+                            <th class="text-center">Evaluated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in rows)
+                        {
+                            <tr>
+                                <td>@r.Name<br /><small class="text-muted">@r.Email</small></td>
+                                <td><small>@(r.StudentNumber ?? "—")</small></td>
+                                <td><small>@(r.Program ?? "—")</small></td>
+                                <td><small>@(r.Section ?? "—")</small></td>
+                                <td class="text-center">
+                                    <span class="badge @(r.IsComplete ? "bg-success" : r.Done > 0 ? "bg-warning text-dark" : "bg-secondary")">
+                                        @r.Done of @r.Due
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                        @if (!rows.Any())
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-4">
+                                @(done ? "No student has completed their evaluations yet." : "Every student has completed their evaluations.")
+                            </td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

@@ -75,6 +75,14 @@ public static class DbSeeder
             await userManager.UpdateAsync(account);
         }
 
+        // The e-mail domain changed from isuc.edu.ph to isu.edu.ph. Existing accounts
+        // move over once; an account is left alone if its new address is already taken.
+        await RenameEmailDomainAsync(context, "@isuc.edu.ph", "@isu.edu.ph");
+
+        // The third term was renamed from Summer to Midyear
+        await context.Semesters.Where(s => s.Term == "Summer")
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Term, "Midyear"));
+
         // Seed roles
         string[] roles = ["Admin", "CEO", "Dean", "ProgramChair", "Faculty", "Student", "AA", "AAStaff", "QA"];
         foreach (var role in roles)
@@ -84,12 +92,12 @@ public static class DbSeeder
         }
 
         // Seed admin user
-        if (await userManager.FindByEmailAsync("admin@isuc.edu.ph") is null)
+        if (await userManager.FindByEmailAsync("admin@isu.edu.ph") is null)
         {
             var admin = new ApplicationUser
             {
-                UserName = "admin@isuc.edu.ph",
-                Email = "admin@isuc.edu.ph",
+                UserName = "admin@isu.edu.ph",
+                Email = "admin@isu.edu.ph",
                 FirstName = "System",
                 LastName = "Administrator",
                 EmailConfirmed = true
@@ -99,12 +107,12 @@ public static class DbSeeder
         }
 
         // Seed CDI test user (role key "AA")
-        if (await userManager.FindByEmailAsync("cdi@isuc.edu.ph") is null)
+        if (await userManager.FindByEmailAsync("cdi@isu.edu.ph") is null)
         {
             var aa = new ApplicationUser
             {
-                UserName = "cdi@isuc.edu.ph",
-                Email = "cdi@isuc.edu.ph",
+                UserName = "cdi@isu.edu.ph",
+                Email = "cdi@isu.edu.ph",
                 FirstName = "CDI",
                 LastName = "Head",
                 EmailConfirmed = true
@@ -114,12 +122,12 @@ public static class DbSeeder
         }
 
         // Seed CDI Staff test user (role key "AAStaff")
-        if (await userManager.FindByEmailAsync("cdistaff@isuc.edu.ph") is null)
+        if (await userManager.FindByEmailAsync("cdistaff@isu.edu.ph") is null)
         {
             var aaStaff = new ApplicationUser
             {
-                UserName = "cdistaff@isuc.edu.ph",
-                Email = "cdistaff@isuc.edu.ph",
+                UserName = "cdistaff@isu.edu.ph",
+                Email = "cdistaff@isu.edu.ph",
                 FirstName = "CDI",
                 LastName = "Staff",
                 EmailConfirmed = true
@@ -129,12 +137,12 @@ public static class DbSeeder
         }
 
         // Seed QA test user
-        if (await userManager.FindByEmailAsync("qa@isuc.edu.ph") is null)
+        if (await userManager.FindByEmailAsync("qa@isu.edu.ph") is null)
         {
             var qa = new ApplicationUser
             {
-                UserName = "qa@isuc.edu.ph",
-                Email = "qa@isuc.edu.ph",
+                UserName = "qa@isu.edu.ph",
+                Email = "qa@isu.edu.ph",
                 FirstName = "Quality",
                 LastName = "Assurance",
                 EmailConfirmed = true
@@ -251,5 +259,34 @@ public static class DbSeeder
 
         if (!await context.Semesters.AnyAsync())
             await import.EnsureSemestersAsync();
+    }
+
+    private static async Task RenameEmailDomainAsync(ApplicationDbContext context, string oldDomain, string newDomain)
+    {
+        var users = await context.Users
+            .Where(u => u.NormalizedEmail!.EndsWith(oldDomain.ToUpperInvariant()))
+            .ToListAsync();
+        if (users.Count == 0) return;
+
+        var taken = (await context.Users.Where(u => u.NormalizedEmail != null)
+            .Select(u => u.NormalizedEmail!).ToListAsync()).ToHashSet();
+
+        foreach (var u in users)
+        {
+            var oldEmail = u.Email!;
+            var newEmail = oldEmail[..^oldDomain.Length] + newDomain;
+            if (!taken.Add(newEmail.ToUpperInvariant())) continue;
+
+            u.Email = newEmail;
+            u.NormalizedEmail = newEmail.ToUpperInvariant();
+
+            // The e-mail is the login, so the user name follows it
+            if (string.Equals(u.UserName, oldEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                u.UserName = newEmail;
+                u.NormalizedUserName = newEmail.ToUpperInvariant();
+            }
+        }
+        await context.SaveChangesAsync();
     }
 }

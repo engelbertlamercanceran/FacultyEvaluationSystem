@@ -23,7 +23,7 @@ namespace FacultyEvalSystem.Services;
 /// </summary>
 public class DataImportService
 {
-    public const string EmailDomain = "isuc.edu.ph";
+    public const string EmailDomain = "isu.edu.ph";
 
     private readonly ApplicationDbContext _db;
     private readonly IPasswordHasher<ApplicationUser> _hasher;
@@ -213,8 +213,7 @@ public class DataImportService
                     SemesterId = semester.Id,
                     CourseCode = code,
                     CourseKey = key,
-                    Section = section,
-                    TeachingMemoNumber = "Faculty Workload Summary"
+                    Section = section
                 };
                 _db.FacultySubjects.Add(fs);
                 assignments.Add(fs);
@@ -420,6 +419,10 @@ public class DataImportService
         int iStudentId = new[] { "Student ID", "Student No", "Student Number", "ID Number", "ID No" }
             .Select(Col).FirstOrDefault(i => i >= 0, -1);
 
+        // Optional: the student's block/section, e.g. "4C"
+        int iSection = new[] { "Block", "Section", "Year and Section", "Year & Section", "Year/Section" }
+            .Select(Col).FirstOrDefault(i => i >= 0, -1);
+
         if (iProgram < 0 || iFirst < 0)
             throw new InvalidDataException("The masterlist must have Program Name, Last Name and First Name columns.");
 
@@ -497,6 +500,8 @@ public class DataImportService
             var suffix = NullIfNa(Get(iSuffix));
             var studentNumber = NullIfNa(Get(iStudentId));
             if (studentNumber is { Length: > 20 }) studentNumber = studentNumber[..20];
+            var section = NullIfNa(Get(iSection))?.ToUpperInvariant();
+            if (section is { Length: > 20 }) section = section[..20];
             var key = StudentKey(last, first, middle, program.Id);
 
             if (!seenThisFile.Add(key))
@@ -510,6 +515,7 @@ public class DataImportService
                 student.ProgramId = program.Id;
                 student.CollegeId = program.CollegeId;
                 student.StudentNumber = studentNumber;
+                student.Section = section;
                 _db.Users.Add(student);
                 _db.UserRoles.Add(new IdentityUserRole<string> { UserId = student.Id, RoleId = studentRoleId });
                 byKey[key] = student;
@@ -521,6 +527,7 @@ public class DataImportService
                 student.Suffix ??= suffix;
                 student.CollegeId = program.CollegeId;
                 if (studentNumber is not null) student.StudentNumber = studentNumber;
+                if (section is not null) student.Section = section;
                 report.Updated++;
             }
 
@@ -621,7 +628,7 @@ public class DataImportService
         };
     }
 
-    /// <summary>firstname.lastname@isuc.edu.ph, adding the middle initial and then a number if taken.</summary>
+    /// <summary>firstname.lastname@isu.edu.ph, adding the middle initial and then a number if taken.</summary>
     private static string UniqueEmail(string first, string? middle, string last, HashSet<string> taken)
     {
         var f = Slug(first);

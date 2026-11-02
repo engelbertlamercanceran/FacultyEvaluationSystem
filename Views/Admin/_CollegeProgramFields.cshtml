@@ -1,0 +1,70 @@
+@* College, Program and (students only) Block/Section fields, shared by Create User and Edit User.
+   The Program list shows only the programs of the selected college, and the Block/Section field
+   only appears when the Role is Student. Expects ViewBag.Colleges (SelectList) and
+   ViewBag.Programs (List<AcademicProgram>), and a Role <select id="Role"> on the same form. *@
+@model (int? CollegeId, int? ProgramId, string? Section)
+@{
+    var programs = (List<FacultyEvalSystem.Models.AcademicProgram>)ViewBag.Programs;
+    // An account with a program but no college shows the program's college
+    var collegeId = Model.CollegeId ?? programs.FirstOrDefault(p => p.Id == Model.ProgramId)?.CollegeId;
+    var colleges = new SelectList(((SelectList)ViewBag.Colleges).Items, "Id", "Name", collegeId);
+}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <label for="CollegeId" class="form-label">College</label>
+        <select id="CollegeId" name="CollegeId" asp-items="colleges" class="form-select">
+            <option value="">None</option>
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label for="ProgramId" class="form-label">Program</label>
+        <select id="ProgramId" name="ProgramId" class="form-select">
+            <option value="">None</option>
+            @foreach (var p in programs)
+            {
+                <option value="@p.Id" data-college="@p.CollegeId" selected="@(p.Id == Model.ProgramId)">@p.Name</option>
+            }
+        </select>
+        <small class="text-muted" id="programHint">Choose a college first to see its programs.</small>
+    </div>
+</div>
+
+<div class="row mb-3" id="sectionRow">
+    <div class="col-md-6">
+        <label for="Section" class="form-label">Block/Section</label>
+        <input id="Section" name="Section" value="@Model.Section" maxlength="20" class="form-control" placeholder="e.g. 4C" />
+        <small class="text-muted">Year level and block of the student, e.g. 4C.</small>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var college = document.getElementById('CollegeId');
+        var program = document.getElementById('ProgramId');
+        var hint = document.getElementById('programHint');
+        var role = document.getElementById('Role');
+        var sectionRow = document.getElementById('sectionRow');
+
+        function filterPrograms() {
+            var c = college.value;
+            Array.from(program.options).forEach(function (o) {
+                if (!o.value) return; // keep "None"
+                var show = c !== '' && o.dataset.college === c;
+                o.hidden = !show;
+                o.disabled = !show;
+                if (!show && o.selected) program.value = '';
+            });
+            hint.style.display = c === '' ? '' : 'none';
+        }
+
+        function toggleSection() {
+            sectionRow.style.display = role && role.value === 'Student' ? '' : 'none';
+        }
+
+        college.addEventListener('change', filterPrograms);
+        if (role) role.addEventListener('change', toggleSection);
+        filterPrograms();
+        toggleSection();
+    })();
+</script>

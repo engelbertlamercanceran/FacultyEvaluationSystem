@@ -196,8 +196,7 @@ public class DemoDataSeeder
                     CourseKey = CourseCodes.Key(subjectCode),
                     CourseTitle = fields[2].Trim(),
                     Section = section,
-                    ProgramId = program?.Id,
-                    TeachingMemoNumber = $"TM-{semester.AcademicYear.Split('-')[0]}-{semester.Id:D3}"
+                    ProgramId = program?.Id
                 });
                 subjectsCreated++;
             }

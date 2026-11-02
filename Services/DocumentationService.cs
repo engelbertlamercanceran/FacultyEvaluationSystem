@@ -251,7 +251,7 @@ public static class DocumentationService
                         TableHeader(table, "Column", "Type", "Description");
                         TableRow(table, "Id", "int (PK)", "Auto-increment primary key");
                         TableRow(table, "AcademicYear", "nvarchar(50)", "e.g., 2025-2026");
-                        TableRow(table, "Term", "nvarchar(20)", "1st Semester, 2nd Semester, Summer");
+                        TableRow(table, "Term", "nvarchar(20)", "1st Semester, 2nd Semester, Midyear");
                         TableRow(table, "IsActive", "bit", "Only one semester is active");
                     });
                 });
@@ -447,7 +447,7 @@ public static class DocumentationService
                     Paragraph(col, "Navigate to Colleges & Programs. Add new colleges with a name and code (e.g., CCSICT). Then add academic programs under each college (e.g., BSIT under CCSICT).");
 
                     SubSection(col, "6.3 Managing Semesters");
-                    Paragraph(col, "Navigate to Semesters. Create new semesters by specifying the academic year (e.g., 2025-2026) and term (1st Semester, 2nd Semester, or Summer). Creating a new semester automatically sets it as the active semester.");
+                    Paragraph(col, "Navigate to Semesters. Create new semesters by specifying the academic year (e.g., 2025-2026) and term (1st Semester, 2nd Semester, or Midyear). Creating a new semester automatically sets it as the active semester.");
 
                     SubSection(col, "6.4 Managing Evaluation Periods");
                     Paragraph(col, "Navigate to Evaluation Periods. Create a new period by providing a name (e.g., Midterm Evaluation), selecting a semester, and setting start/end dates. Use the Open/Close buttons to control when evaluations can be submitted. Only open periods accept new evaluations. Click 'Compute' to calculate results after evaluations are submitted.");
@@ -475,7 +475,7 @@ public static class DocumentationService
                     SubSection(col, "6.8 Starting a New Semester / Academic Year");
                     Paragraph(col, "At the start of each new semester or academic year, the admin must set up the system for the new evaluation cycle. Follow these steps in order:");
 
-                    BulletPoint(col, "Step 1: Create a New Semester - Go to Semesters and enter the new academic year (e.g., '2026-2027') and select the term (1st Semester, 2nd Semester, or Summer). Creating a new semester automatically sets it as the active semester. Previous semesters become inactive but their data is preserved.");
+                    BulletPoint(col, "Step 1: Create a New Semester - Go to Semesters and enter the new academic year (e.g., '2026-2027') and select the term (1st Semester, 2nd Semester, or Midyear). Creating a new semester automatically sets it as the active semester. Previous semesters become inactive but their data is preserved.");
 
                     BulletPoint(col, "Step 2: Assign Courses to Faculty - Go to Course Assignments. For each faculty member, assign their courses for the new semester by entering the course code (e.g., IT 101), subject name (e.g., Introduction to Computing), and section (e.g., BSIT 1A). Note: Course assignments are per-semester, so even if a faculty teaches the same course, it must be reassigned each semester.");
 
@@ -676,7 +676,7 @@ public static class DocumentationService
                     col.Item().PaddingVertical(3).Table(table =>
                     {
                         table.ColumnsDefinition(c => { c.RelativeColumn(1); c.RelativeColumn(2); });
-                        TableRow(table, "Email", "admin@isuc.edu.ph");
+                        TableRow(table, "Email", "admin@isu.edu.ph");
                         TableRow(table, "Password", "Admin@123");
                         TableRow(table, "Role", "System Administrator");
                     });
@@ -686,8 +686,8 @@ public static class DocumentationService
                     {
                         table.ColumnsDefinition(c => { c.RelativeColumn(2); c.RelativeColumn(1.5f); c.RelativeColumn(1); });
                         TableHeader(table, "Email", "Name", "Role");
-                        TableRow(table, "dean.garcia@isuc.edu.ph", "Maria Garcia", "Dean (CCSICT)");
-                        TableRow(table, "chair.reyes@isuc.edu.ph", "Roberto Reyes", "ProgramChair (BSIT)");
+                        TableRow(table, "dean.garcia@isu.edu.ph", "Maria Garcia", "Dean (CCSICT)");
+                        TableRow(table, "chair.reyes@isu.edu.ph", "Roberto Reyes", "ProgramChair (BSIT)");
                     });
 
                     SubSection(col, "Faculty Members (10)");
@@ -695,20 +695,20 @@ public static class DocumentationService
                     {
                         table.ColumnsDefinition(c => { c.RelativeColumn(2.5f); c.RelativeColumn(1.5f); c.RelativeColumn(1); c.RelativeColumn(1.2f); });
                         TableHeader(table, "Email", "Name", "College", "Profile");
-                        TableRow(table, "jose.santos@isuc.edu.ph", "Jose Santos", "CCSICT", "Outstanding");
-                        TableRow(table, "anna.cruz@isuc.edu.ph", "Anna Marie Cruz", "CCSICT", "Very Good");
-                        TableRow(table, "mark.bautista@isuc.edu.ph", "Mark A. Bautista", "CCSICT", "Good");
-                        TableRow(table, "elena.ramos@isuc.edu.ph", "Elena Ramos", "CCSICT", "Outstanding");
-                        TableRow(table, "pedro.villanueva@isuc.edu.ph", "Pedro Villanueva", "CCSICT", "Needs Improvement");
-                        TableRow(table, "rosa.mendoza@isuc.edu.ph", "Rosa Mendoza", "CAS", "Good");
-                        TableRow(table, "carlos.aquino@isuc.edu.ph", "Carlos Aquino", "CAS", "Satisfactory");
-                        TableRow(table, "lucia.pascual@isuc.edu.ph", "Lucia Pascual", "CED", "Outstanding");
-                        TableRow(table, "ramon.delacruz@isuc.edu.ph", "Ramon Dela Cruz", "CED", "Good");
-                        TableRow(table, "grace.tolentino@isuc.edu.ph", "Grace Tolentino", "CED", "Mixed");
+                        TableRow(table, "jose.santos@isu.edu.ph", "Jose Santos", "CCSICT", "Outstanding");
+                        TableRow(table, "anna.cruz@isu.edu.ph", "Anna Marie Cruz", "CCSICT", "Very Good");
+                        TableRow(table, "mark.bautista@isu.edu.ph", "Mark A. Bautista", "CCSICT", "Good");
+                        TableRow(table, "elena.ramos@isu.edu.ph", "Elena Ramos", "CCSICT", "Outstanding");
+                        TableRow(table, "pedro.villanueva@isu.edu.ph", "Pedro Villanueva", "CCSICT", "Needs Improvement");
+                        TableRow(table, "rosa.mendoza@isu.edu.ph", "Rosa Mendoza", "CAS", "Good");
+                        TableRow(table, "carlos.aquino@isu.edu.ph", "Carlos Aquino", "CAS", "Satisfactory");
+                        TableRow(table, "lucia.pascual@isu.edu.ph", "Lucia Pascual", "CED", "Outstanding");
+                        TableRow(table, "ramon.delacruz@isu.edu.ph", "Ramon Dela Cruz", "CED", "Good");
+                        TableRow(table, "grace.tolentino@isu.edu.ph", "Grace Tolentino", "CED", "Mixed");
                     });
 
                     SubSection(col, "Sample Students (20)");
-                    Paragraph(col, "20 students are enrolled across various courses. Example: juan.delacruz@isuc.edu.ph (Juan Dela Cruz), mariaclara.reyes@isuc.edu.ph (Maria Clara Reyes), etc. All use password Pass@123.");
+                    Paragraph(col, "20 students are enrolled across various courses. Example: juan.delacruz@isu.edu.ph (Juan Dela Cruz), mariaclara.reyes@isu.edu.ph (Maria Clara Reyes), etc. All use password Pass@123.");
 
                     SubSection(col, "Demo Data Summary (via Quick Demo Setup)");
                     BulletPoint(col, "5 Colleges: CCSICT, CAS, CED, COE, CA");

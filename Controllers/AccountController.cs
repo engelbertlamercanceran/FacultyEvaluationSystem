@@ -34,6 +34,11 @@ public class AccountController : Controller
             return View(model);
         }
 
+        // Accounts moved from @isuc.edu.ph to @isu.edu.ph; the old address still signs in
+        model.Email = model.Email.Trim();
+        if (model.Email.EndsWith("@isuc.edu.ph", StringComparison.OrdinalIgnoreCase))
+            model.Email = model.Email[..^"@isuc.edu.ph".Length] + "@" + Services.DataImportService.EmailDomain;
+
         // Step 1: Email only — check if account exists
         if (!model.ShowPassword)
         {

@@ -31,6 +31,10 @@ public class ApplicationUser : IdentityUser
     public int? ProgramId { get; set; }
     public AcademicProgram? Program { get; set; }
 
+    // Students only: the block/section they belong to, e.g. "4C".
+    [MaxLength(20)]
+    public string? Section { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     // Accounts created by an import start with the system's default password,

@@ -54,6 +54,11 @@ public class RegisterViewModel
 
     [Display(Name = "Program")]
     public int? ProgramId { get; set; }
+
+    // Students only
+    [MaxLength(20)]
+    [Display(Name = "Block/Section")]
+    public string? Section { get; set; }
 }
 
 public class EditUserViewModel
@@ -91,6 +96,11 @@ public class EditUserViewModel
 
     [Display(Name = "Program")]
     public int? ProgramId { get; set; }
+
+    // Students only
+    [MaxLength(20)]
+    [Display(Name = "Block/Section")]
+    public string? Section { get; set; }
 
     // Shown only: still on the default password, waiting for the user to change it
     public bool MustChangePassword { get; set; }

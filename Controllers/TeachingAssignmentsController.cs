@@ -39,7 +39,7 @@ public class TeachingAssignmentsController : Controller
     }
 
     public static readonly string[] ExpectedColumns =
-        ["MemoNumber", "FacultyEmail", "CourseCode", "CourseTitle", "Section", "ProgramCode"];
+        ["FacultyEmail", "CourseCode", "CourseTitle", "Section", "ProgramCode"];
 
     public async Task<IActionResult> Index(string? search)
     {
@@ -84,8 +84,8 @@ public class TeachingAssignmentsController : Controller
     public IActionResult Template()
     {
         var csv = string.Join(",", ExpectedColumns) + "\n"
-                + "TM-2026-001,dominic.cabauatan@isuc.edu.ph,IT 101,Introduction to Computing,BSIT 1A,BSIT\n"
-                + "TM-2026-001,phillip.dumlao@isuc.edu.ph,GEC 1,Understanding the Self,BSIT 1A,BSIT\n";
+                + $"dominic.cabauatan@{DataImportService.EmailDomain},IT 101,Introduction to Computing,BSIT 1A,BSIT\n"
+                + $"phillip.dumlao@{DataImportService.EmailDomain},GEC 1,Understanding the Self,BSIT 1A,BSIT\n";
 
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "teaching_memo_template.csv");
     }
@@ -117,8 +117,9 @@ public class TeachingAssignmentsController : Controller
         var header = rows[0].Select(h => h.Trim()).ToList();
         int Col(params string[] names) => header.FindIndex(h => names.Any(n => h.Equals(n, StringComparison.OrdinalIgnoreCase)));
 
-        // Older memos label the column "SubjectCode"; the system calls it Course Code
-        int iMemo = Col("MemoNumber"), iEmail = Col("FacultyEmail"), iCode = Col("CourseCode", "SubjectCode"),
+        // Older memos label the column "SubjectCode"; the system calls it Course Code.
+        // A MemoNumber column in older files is simply ignored.
+        int iEmail = Col("FacultyEmail"), iCode = Col("CourseCode", "SubjectCode"),
             iName = Col("CourseTitle", "SubjectName"), iSection = Col("Section"), iProgram = Col("ProgramCode");
 
         if (iEmail < 0 || iCode < 0)
@@ -174,7 +175,6 @@ public class TeachingAssignmentsController : Controller
             var name = Get(iName);
             var section = Get(iSection);
             var programCode = Get(iProgram);
-            var memoNo = Get(iMemo);
 
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
             {
@@ -215,7 +215,6 @@ public class TeachingAssignmentsController : Controller
             {
                 existing.CourseTitle = string.IsNullOrWhiteSpace(name) ? existing.CourseTitle : name;
                 existing.ProgramId = program?.Id ?? existing.ProgramId;
-                existing.TeachingMemoNumber = string.IsNullOrWhiteSpace(memoNo) ? existing.TeachingMemoNumber : memoNo;
                 updated++;
             }
             else
@@ -228,8 +227,7 @@ public class TeachingAssignmentsController : Controller
                     CourseKey = key,
                     CourseTitle = string.IsNullOrWhiteSpace(name) ? null : name,
                     Section = string.IsNullOrWhiteSpace(section) ? null : section,
-                    ProgramId = program?.Id,
-                    TeachingMemoNumber = string.IsNullOrWhiteSpace(memoNo) ? null : memoNo
+                    ProgramId = program?.Id
                 });
                 created++;
             }
@@ -256,7 +254,7 @@ public class TeachingAssignmentsController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(string facultyId, string courseCode, string? courseTitle,
-        string? section, int? programId, string? memoNumber)
+        string? section, int? programId)
     {
         var activeSemester = await _db.Semesters.FirstOrDefaultAsync(s => s.IsActive);
         if (activeSemester is null)
@@ -288,8 +286,7 @@ public class TeachingAssignmentsController : Controller
             CourseKey = key,
             CourseTitle = Blank(courseTitle),
             Section = cleanSection,
-            ProgramId = programId,
-            TeachingMemoNumber = Blank(memoNumber)
+            ProgramId = programId
         });
         await _db.SaveChangesAsync();
 
@@ -316,12 +313,12 @@ public class TeachingAssignmentsController : Controller
     /// <summary>
     /// Once evaluations are recorded against an assignment, its faculty member and
     /// Course Code are fixed: changing them would re-attribute submitted evaluations.
-    /// The title, section, owning program and memo number can always be corrected.
+    /// The title, section and owning program can always be corrected.
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, string facultyId, string courseCode, string? courseTitle,
-        string? section, int? programId, string? memoNumber)
+        string? section, int? programId)
     {
         var assignment = await _db.FacultySubjects.FindAsync(id);
         if (assignment is null) return NotFound();
@@ -348,7 +345,6 @@ public class TeachingAssignmentsController : Controller
         assignment.CourseTitle = Blank(courseTitle);
         assignment.Section = Blank(section);
         assignment.ProgramId = programId;
-        assignment.TeachingMemoNumber = Blank(memoNumber);
 
         // The students linked to the old course or instructor no longer apply
         if (teachingChanged)
